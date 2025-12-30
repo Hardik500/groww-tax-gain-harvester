@@ -1,14 +1,25 @@
 /**
- * Tax Gain Harvester
- * Calculate optimal LTCG harvesting for India's ₹1.25L exemption
+ * Tax Gain Harvester v2.0
+ * - Auto file detection via regex
+ * - ELSS 3-year lock-in handling
+ * - Optimized LTCG harvesting
  */
 
 // ============================================
-// Constants & Configuration
+// Constants
 // ============================================
 
 const LTCG_EXEMPTION_LIMIT = 125000;
+const ELSS_LOCKIN_YEARS = 3;
 const LTCG_HOLDING_MONTHS = 12;
+
+// File detection patterns
+const FILE_PATTERNS = {
+    'mf-holdings': /^Mutual_Funds_\d+_[\d-]+_[\d-]+\.xlsx$/i,
+    'mf-capital-gains': /^Mutual_Funds_Capital_Gains_Report_[\d-]+_[\d-]+\.xlsx$/i,
+    'stock-holdings': /^Stocks_Holdings_Statement_\d+_[\d-]+\.xlsx$/i,
+    'stock-capital-gains': /^Stocks_Capital_Gains_Report_\d+_[\d-]+_[\d-]+\.xlsx$/i
+};
 
 // Data storage
 const appData = {
@@ -25,52 +36,86 @@ const appData = {
 };
 
 // ============================================
-// File Upload Handling
+// File Upload with Auto Detection
 // ============================================
 
-document.querySelectorAll('.file-card').forEach(card => {
-    const fileType = card.dataset.fileType;
-    const input = card.querySelector('.file-input');
+const dropzone = document.getElementById('dropzone');
+const fileInput = document.getElementById('file-input');
 
-    input.addEventListener('change', async (e) => {
-        if (e.target.files.length > 0) {
-            const file = e.target.files[0];
-            await processFile(file, fileType, card);
-        }
-    });
+// Drag and drop events
+dropzone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    dropzone.classList.add('dragover');
 });
 
-async function processFile(file, fileType, card) {
-    try {
-        const data = await readExcelFile(file);
+dropzone.addEventListener('dragleave', () => {
+    dropzone.classList.remove('dragover');
+});
 
-        switch (fileType) {
-            case 'mf-holdings':
-                appData.mfHoldings = parseMFHoldings(data);
-                break;
-            case 'mf-capital-gains':
-                appData.mfCapitalGains = parseMFCapitalGains(data);
-                break;
-            case 'stock-holdings':
-                appData.stockHoldings = parseStockHoldings(data);
-                break;
-            case 'stock-capital-gains':
-                appData.stockCapitalGains = parseStockCapitalGains(data);
-                break;
+dropzone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropzone.classList.remove('dragover');
+    handleFiles(e.dataTransfer.files);
+});
+
+fileInput.addEventListener('change', (e) => {
+    handleFiles(e.target.files);
+});
+
+function detectFileType(filename) {
+    for (const [type, pattern] of Object.entries(FILE_PATTERNS)) {
+        if (pattern.test(filename)) {
+            return type;
+        }
+    }
+    return null;
+}
+
+async function handleFiles(files) {
+    for (const file of files) {
+        const fileType = detectFileType(file.name);
+
+        if (!fileType) {
+            console.log(`Unrecognized file: ${file.name}`);
+            continue;
         }
 
-        // Update UI
-        appData.filesLoaded[fileType] = true;
-        card.classList.add('uploaded');
-        card.querySelector('.status-badge').textContent = 'Loaded';
-        card.querySelector('.status-badge').classList.remove('pending');
-        card.querySelector('.status-badge').classList.add('uploaded');
+        try {
+            const data = await readExcelFile(file);
 
-        updateCalculateButton();
+            switch (fileType) {
+                case 'mf-holdings':
+                    appData.mfHoldings = parseMFHoldings(data);
+                    break;
+                case 'mf-capital-gains':
+                    appData.mfCapitalGains = parseMFCapitalGains(data);
+                    break;
+                case 'stock-holdings':
+                    appData.stockHoldings = parseStockHoldings(data);
+                    break;
+                case 'stock-capital-gains':
+                    appData.stockCapitalGains = parseStockCapitalGains(data);
+                    break;
+            }
 
-    } catch (error) {
-        console.error(`Error processing ${fileType}:`, error);
-        alert(`Error reading file: ${error.message}`);
+            // Update UI status
+            appData.filesLoaded[fileType] = true;
+            updateFileStatus(fileType, file.name);
+
+        } catch (error) {
+            console.error(`Error processing ${file.name}:`, error);
+        }
+    }
+
+    updateCalculateButton();
+}
+
+function updateFileStatus(fileType, filename) {
+    const item = document.querySelector(`.file-status-item[data-type="${fileType}"]`);
+    if (item) {
+        item.classList.add('loaded');
+        item.querySelector('.status-icon').textContent = '✅';
+        item.querySelector('.status-file').textContent = filename.slice(0, 25) + (filename.length > 25 ? '...' : '');
     }
 }
 
@@ -106,7 +151,7 @@ function updateCalculateButton() {
 
 function parseMFHoldings(data) {
     const holdings = [];
-    const sheet = Object.values(data)[0]; // First sheet
+    const sheet = Object.values(data)[0];
 
     let startRow = -1;
     for (let i = 0; i < sheet.length; i++) {
@@ -122,18 +167,27 @@ function parseMFHoldings(data) {
         const row = sheet[i];
         if (!row || !row[0] || row[0].toString().trim() === '') continue;
 
+        const schemeName = row[0];
+        const subCategory = row[3] || '';
+
+        // Detect ELSS funds
+        const isELSS = subCategory.toLowerCase().includes('elss') ||
+            schemeName.toLowerCase().includes('elss') ||
+            schemeName.toLowerCase().includes('tax saver');
+
         holdings.push({
-            schemeName: row[0],
+            schemeName,
             amc: row[1],
             category: row[2],
-            subCategory: row[3],
+            subCategory,
             folioNo: row[4],
             source: row[5],
             units: parseFloat(row[6]) || 0,
             investedValue: parseFloat(row[7]) || 0,
             currentValue: parseFloat(row[8]) || 0,
             returns: parseFloat(row[9]) || 0,
-            xirr: row[10]
+            xirr: row[10],
+            isELSS
         });
     }
 
@@ -144,7 +198,6 @@ function parseMFCapitalGains(data) {
     const gains = [];
     const sheet = Object.values(data)[0];
 
-    // Find the equity section header row
     let startRow = -1;
     for (let i = 0; i < sheet.length; i++) {
         if (sheet[i] && sheet[i][0] === 'Scheme Name' && sheet[i][1] === 'Scheme Code') {
@@ -224,36 +277,23 @@ function parseStockCapitalGains(data) {
 
     const sheet = Object.values(data)[0];
 
-    // Find summary values
     for (let i = 0; i < Math.min(30, sheet.length); i++) {
         const row = sheet[i];
         if (!row) continue;
-
         if (row[0] === 'Short Term P&L') result.summary.shortTermPnL = parseFloat(row[1]) || 0;
         if (row[0] === 'Long Term P&L') result.summary.longTermPnL = parseFloat(row[1]) || 0;
     }
 
-    // Parse trade sections
     let currentSection = null;
 
     for (let i = 0; i < sheet.length; i++) {
         const row = sheet[i];
         if (!row) continue;
 
-        if (row[0] === 'Intraday trades') {
-            currentSection = 'intraday';
-            continue;
-        }
-        if (row[0] === 'Short Term trades') {
-            currentSection = 'shortTerm';
-            continue;
-        }
-        if (row[0] === 'Long Term trades') {
-            currentSection = 'longTerm';
-            continue;
-        }
+        if (row[0] === 'Intraday trades') { currentSection = 'intraday'; continue; }
+        if (row[0] === 'Short Term trades') { currentSection = 'shortTerm'; continue; }
+        if (row[0] === 'Long Term trades') { currentSection = 'longTerm'; continue; }
 
-        // Parse trade row
         if (currentSection && row[0] && row[0] !== 'Stock name' && !row[0].includes('trades')) {
             const trade = {
                 stockName: row[0],
@@ -273,8 +313,8 @@ function parseStockCapitalGains(data) {
             }
         }
 
-        // Check for section end
-        if (currentSection && row[0] && (row[0].includes('Term') && row[0] !== 'Long Term trades' && row[0] !== 'Short Term trades')) {
+        if (currentSection && row[0] && row[0].includes('Term') &&
+            row[0] !== 'Long Term trades' && row[0] !== 'Short Term trades') {
             currentSection = null;
         }
     }
@@ -284,58 +324,42 @@ function parseStockCapitalGains(data) {
 
 function parseExcelDate(value) {
     if (!value) return null;
-
-    // If it's already a string date like "2024-12-16"
-    if (typeof value === 'string') {
-        return value;
-    }
-
-    // If it's an Excel serial date number
+    if (typeof value === 'string') return value;
     if (typeof value === 'number') {
         const date = new Date((value - 25569) * 86400 * 1000);
         return date.toISOString().split('T')[0];
     }
-
     return value.toString();
 }
 
 // ============================================
-// Calculate Button Handler
+// Calculate & Display
 // ============================================
 
 document.getElementById('calculate-btn').addEventListener('click', calculateHarvesting);
 
 function calculateHarvesting() {
-    // Calculate realized LTCG from this FY
+    // Calculate realized LTCG
     const mfLtcgRealized = appData.mfCapitalGains.reduce((sum, g) => sum + g.ltcg, 0);
     const stockLtcgRealized = appData.stockCapitalGains.summary?.longTermPnL || 0;
-    const totalRealizedLtcg = mfLtcgRealized + stockLtcgRealized;
+    const totalRealizedLtcg = mfLtcgRealized + Math.max(0, stockLtcgRealized);
 
     const remainingExemption = Math.max(0, LTCG_EXEMPTION_LIMIT - totalRealizedLtcg);
 
-    // Update summary cards
+    // Update summary
     document.getElementById('realized-ltcg').textContent = formatCurrency(totalRealizedLtcg);
-    document.getElementById('realized-breakdown').innerHTML = `
-        MF: ${formatCurrency(mfLtcgRealized)} | Stocks: ${formatCurrency(stockLtcgRealized)}
-    `;
+    document.getElementById('realized-breakdown').innerHTML =
+        `MF: ${formatCurrency(mfLtcgRealized)} | Stocks: ${formatCurrency(Math.max(0, stockLtcgRealized))}`;
     document.getElementById('remaining-ltcg').textContent = formatCurrency(remainingExemption);
 
-    // Show redeemed MFs
+    // Render sections
     renderRedeemedMFs();
-
-    // Show redeemed stocks
     renderRedeemedStocks();
-
-    // Show current holdings
     renderCurrentHoldings();
-
-    // Generate recommendations
     generateRecommendations(remainingExemption);
 
-    // Show results section
+    // Show results
     document.getElementById('results-section').style.display = 'block';
-
-    // Scroll to results
     document.getElementById('results-section').scrollIntoView({ behavior: 'smooth' });
 }
 
@@ -346,7 +370,6 @@ function calculateHarvesting() {
 function renderRedeemedMFs() {
     const tbody = document.getElementById('redeemed-mf-body');
 
-    // Group by scheme name and aggregate
     const grouped = {};
     appData.mfCapitalGains.forEach(g => {
         if (!grouped[g.schemeName]) {
@@ -357,85 +380,86 @@ function renderRedeemedMFs() {
         grouped[g.schemeName].ltcg += g.ltcg;
     });
 
+    if (Object.keys(grouped).length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No MF redemptions this FY</td></tr>';
+        return;
+    }
+
     tbody.innerHTML = Object.entries(grouped).map(([name, data]) => `
         <tr>
             <td>${name}</td>
             <td>${data.redeemDate || 'N/A'}</td>
-            <td>${data.units.toFixed(3)}</td>
+            <td>${data.units.toFixed(2)}</td>
             <td class="${data.stcg >= 0 ? 'positive' : 'negative'}">${formatCurrency(data.stcg)}</td>
             <td class="${data.ltcg >= 0 ? 'positive' : 'negative'}">${formatCurrency(data.ltcg)}</td>
         </tr>
     `).join('');
-
-    if (Object.keys(grouped).length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color: var(--text-muted);">No MF redemptions in this FY</td></tr>';
-    }
 }
 
 function renderRedeemedStocks() {
     const tbody = document.getElementById('redeemed-stocks-body');
 
-    // Combine all realized stock trades
     const allTrades = [
-        ...appData.stockCapitalGains.shortTerm.map(t => ({ ...t, type: 'Short Term' })),
-        ...appData.stockCapitalGains.longTerm.map(t => ({ ...t, type: 'Long Term' }))
+        ...appData.stockCapitalGains.shortTerm.map(t => ({ ...t, type: 'Short' })),
+        ...appData.stockCapitalGains.longTerm.map(t => ({ ...t, type: 'Long' }))
     ];
 
-    tbody.innerHTML = allTrades.slice(0, 50).map(trade => `
+    if (allTrades.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No stock sales this FY</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = allTrades.slice(0, 30).map(t => `
         <tr>
-            <td>${trade.stockName}</td>
-            <td>${trade.sellDate || 'N/A'}</td>
-            <td>${trade.quantity}</td>
-            <td>${formatCurrency(trade.buyPrice)}</td>
-            <td>${formatCurrency(trade.sellPrice)}</td>
-            <td class="${trade.realisedPnL >= 0 ? 'positive' : 'negative'}">${formatCurrency(trade.realisedPnL)}</td>
-            <td><span class="status-badge ${trade.type === 'Long Term' ? 'uploaded' : 'pending'}">${trade.type}</span></td>
+            <td>${t.stockName}</td>
+            <td>${t.sellDate || 'N/A'}</td>
+            <td>${t.quantity}</td>
+            <td>${formatCurrency(t.buyPrice)}</td>
+            <td>${formatCurrency(t.sellPrice)}</td>
+            <td class="${t.realisedPnL >= 0 ? 'positive' : 'negative'}">${formatCurrency(t.realisedPnL)}</td>
+            <td><span class="tag ${t.type.toLowerCase()}">${t.type}</span></td>
         </tr>
     `).join('');
-
-    if (allTrades.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; color: var(--text-muted);">No stock redemptions in this FY</td></tr>';
-    }
-
-    if (allTrades.length > 50) {
-        tbody.innerHTML += `<tr><td colspan="7" style="text-align:center; color: var(--text-muted);">... and ${allTrades.length - 50} more trades</td></tr>`;
-    }
 }
 
 function renderCurrentHoldings() {
     // MF Holdings
     const mfBody = document.getElementById('holdings-mf-body');
-    const mfWithGains = appData.mfHoldings
-        .filter(h => h.returns > 0)
-        .sort((a, b) => b.returns - a.returns);
+    const mfWithGains = appData.mfHoldings.filter(h => h.returns > 0).sort((a, b) => b.returns - a.returns);
 
-    mfBody.innerHTML = mfWithGains.map(h => `
-        <tr>
-            <td>${h.schemeName}</td>
-            <td>${h.units.toFixed(3)}</td>
-            <td>${formatCurrency(h.investedValue)}</td>
-            <td>${formatCurrency(h.currentValue)}</td>
-            <td class="positive">${formatCurrency(h.returns)}</td>
-            <td class="positive">${((h.returns / h.investedValue) * 100).toFixed(2)}%</td>
-        </tr>
-    `).join('');
+    if (mfWithGains.length === 0) {
+        mfBody.innerHTML = '<tr><td colspan="6" class="empty-state">No MFs with unrealized gains</td></tr>';
+    } else {
+        mfBody.innerHTML = mfWithGains.map(h => `
+            <tr>
+                <td>${h.schemeName}${h.isELSS ? ' <span class="tag short">ELSS</span>' : ''}</td>
+                <td>${h.units.toFixed(2)}</td>
+                <td>${formatCurrency(h.investedValue)}</td>
+                <td>${formatCurrency(h.currentValue)}</td>
+                <td class="positive">${formatCurrency(h.returns)}</td>
+                <td class="positive">${((h.returns / h.investedValue) * 100).toFixed(1)}%</td>
+            </tr>
+        `).join('');
+    }
 
     // Stock Holdings
     const stockBody = document.getElementById('holdings-stocks-body');
-    const stocksWithGains = appData.stockHoldings
-        .filter(h => h.unrealisedPnL > 0)
-        .sort((a, b) => b.unrealisedPnL - a.unrealisedPnL);
+    const stocksWithGains = appData.stockHoldings.filter(h => h.unrealisedPnL > 0).sort((a, b) => b.unrealisedPnL - a.unrealisedPnL);
 
-    stockBody.innerHTML = stocksWithGains.map(h => `
-        <tr>
-            <td>${h.stockName}</td>
-            <td>${h.quantity}</td>
-            <td>${formatCurrency(h.avgBuyPrice)}</td>
-            <td>${formatCurrency(h.closingPrice)}</td>
-            <td class="positive">${formatCurrency(h.unrealisedPnL)}</td>
-            <td class="positive">${((h.unrealisedPnL / h.buyValue) * 100).toFixed(2)}%</td>
-        </tr>
-    `).join('');
+    if (stocksWithGains.length === 0) {
+        stockBody.innerHTML = '<tr><td colspan="6" class="empty-state">No stocks with unrealized gains</td></tr>';
+    } else {
+        stockBody.innerHTML = stocksWithGains.slice(0, 30).map(h => `
+            <tr>
+                <td>${h.stockName}</td>
+                <td>${h.quantity}</td>
+                <td>${formatCurrency(h.avgBuyPrice)}</td>
+                <td>${formatCurrency(h.closingPrice)}</td>
+                <td class="positive">${formatCurrency(h.unrealisedPnL)}</td>
+                <td class="positive">${((h.unrealisedPnL / h.buyValue) * 100).toFixed(1)}%</td>
+            </tr>
+        `).join('');
+    }
 }
 
 function generateRecommendations(remainingExemption) {
@@ -443,10 +467,10 @@ function generateRecommendations(remainingExemption) {
 
     if (remainingExemption <= 0) {
         container.innerHTML = `
-            <div class="recommendation-card" style="border-color: var(--warning); background: var(--warning-bg);">
-                <div>
+            <div class="recommendation-card">
+                <div class="rec-info">
                     <div class="rec-name">⚠️ LTCG Limit Already Exhausted</div>
-                    <div class="rec-type">You have already realized ₹1.25L+ in LTCG this financial year.</div>
+                    <div class="rec-type">You've already realized ₹1.25L+ LTCG this FY</div>
                 </div>
             </div>
         `;
@@ -455,14 +479,11 @@ function generateRecommendations(remainingExemption) {
         return;
     }
 
-    // Calculate efficiency for each holding (gain per capital required)
     const candidates = [];
 
-    // MF candidates (only those with positive gains)
+    // MF candidates - EXCLUDE ELSS (3-year lock-in)
     appData.mfHoldings.forEach(h => {
-        if (h.returns > 0) {
-            const gainPerUnit = h.returns / h.units;
-            const pricePerUnit = h.currentValue / h.units;
+        if (h.returns > 0 && !h.isELSS) {
             candidates.push({
                 type: 'MF',
                 name: h.schemeName,
@@ -470,18 +491,16 @@ function generateRecommendations(remainingExemption) {
                 totalGain: h.returns,
                 currentValue: h.currentValue,
                 investedValue: h.investedValue,
-                gainPerUnit,
-                pricePerUnit,
-                efficiency: h.returns / h.currentValue // gain per rupee of capital
+                gainPerUnit: h.returns / h.units,
+                pricePerUnit: h.currentValue / h.units,
+                efficiency: h.returns / h.currentValue
             });
         }
     });
 
-    // Stock candidates (only those with positive gains and held long term)
-    // Note: Without purchase date info, we assume all holdings are LTCG eligible
+    // Stock candidates
     appData.stockHoldings.forEach(h => {
         if (h.unrealisedPnL > 0) {
-            const gainPerUnit = h.unrealisedPnL / h.quantity;
             candidates.push({
                 type: 'Stock',
                 name: h.stockName,
@@ -489,7 +508,7 @@ function generateRecommendations(remainingExemption) {
                 totalGain: h.unrealisedPnL,
                 currentValue: h.closingValue,
                 investedValue: h.buyValue,
-                gainPerUnit,
+                gainPerUnit: h.unrealisedPnL / h.quantity,
                 pricePerUnit: h.closingPrice,
                 efficiency: h.unrealisedPnL / h.closingValue
             });
@@ -509,73 +528,59 @@ function generateRecommendations(remainingExemption) {
 
         const remainingToFill = remainingExemption - accumulatedLtcg;
 
-        // Calculate how many units to sell
-        let unitsToSell;
-        let ltcgFromSale;
-        let capitalRequired;
+        let unitsToSell, ltcgFromSale, capitalRequired;
 
         if (c.totalGain <= remainingToFill) {
-            // Sell all units
             unitsToSell = c.totalUnits;
             ltcgFromSale = c.totalGain;
             capitalRequired = c.currentValue;
         } else {
-            // Partial sell
-            unitsToSell = (remainingToFill / c.gainPerUnit);
-            if (c.type === 'Stock') {
-                unitsToSell = Math.floor(unitsToSell); // Stocks must be whole numbers
-            }
+            unitsToSell = remainingToFill / c.gainPerUnit;
+            if (c.type === 'Stock') unitsToSell = Math.floor(unitsToSell);
             ltcgFromSale = unitsToSell * c.gainPerUnit;
             capitalRequired = unitsToSell * c.pricePerUnit;
         }
 
         if (unitsToSell > 0 && ltcgFromSale > 0) {
-            recommendations.push({
-                ...c,
-                unitsToSell,
-                ltcgFromSale,
-                capitalRequired
-            });
-
+            recommendations.push({ ...c, unitsToSell, ltcgFromSale, capitalRequired });
             accumulatedLtcg += ltcgFromSale;
             totalCapitalRequired += capitalRequired;
         }
     }
 
-    // Render recommendations
+    // Render
     if (recommendations.length === 0) {
         container.innerHTML = `
-            <div class="recommendation-card" style="border-color: var(--text-muted);">
-                <div>
-                    <div class="rec-name">No LTCG-Eligible Holdings Found</div>
-                    <div class="rec-type">You don't have any holdings with unrealized long-term gains.</div>
+            <div class="recommendation-card">
+                <div class="rec-info">
+                    <div class="rec-name">No Eligible Holdings</div>
+                    <div class="rec-type">No non-ELSS holdings with unrealized gains available</div>
                 </div>
             </div>
         `;
     } else {
         container.innerHTML = recommendations.map((r, i) => `
             <div class="recommendation-card">
-                <div>
+                <div class="rec-info">
                     <div class="rec-name">${i + 1}. ${r.name}</div>
-                    <div class="rec-type">${r.type} | Efficiency: ${(r.efficiency * 100).toFixed(1)}%</div>
+                    <div class="rec-type">${r.type} • ${(r.efficiency * 100).toFixed(0)}% efficiency</div>
                 </div>
-                <div class="rec-detail">
-                    <div class="rec-label">Sell</div>
-                    <div class="rec-value">${r.type === 'MF' ? r.unitsToSell.toFixed(3) + ' units' : r.unitsToSell + ' shares'}</div>
+                <div class="rec-stat">
+                    <div class="label">Sell</div>
+                    <div class="value">${r.type === 'MF' ? r.unitsToSell.toFixed(2) + ' units' : r.unitsToSell + ' shares'}</div>
                 </div>
-                <div class="rec-detail">
-                    <div class="rec-label">LTCG</div>
-                    <div class="rec-value ltcg">${formatCurrency(r.ltcgFromSale)}</div>
+                <div class="rec-stat">
+                    <div class="label">LTCG</div>
+                    <div class="value success">${formatCurrency(r.ltcgFromSale)}</div>
                 </div>
-                <div class="rec-detail">
-                    <div class="rec-label">Capital Needed</div>
-                    <div class="rec-value">${formatCurrency(r.capitalRequired)}</div>
+                <div class="rec-stat">
+                    <div class="label">Capital</div>
+                    <div class="value">${formatCurrency(r.capitalRequired)}</div>
                 </div>
             </div>
         `).join('');
     }
 
-    // Update totals
     document.getElementById('total-ltcg-harvest').textContent = formatCurrency(accumulatedLtcg);
     document.getElementById('total-capital-required').textContent = formatCurrency(totalCapitalRequired);
 }
@@ -590,11 +595,9 @@ document.querySelectorAll('.tabs').forEach(tabContainer => {
             const tabId = btn.dataset.tab;
             const parent = btn.closest('.data-section');
 
-            // Update buttons
             parent.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
 
-            // Update content
             parent.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
             parent.querySelector(`#${tabId}`).classList.add('active');
         });
@@ -602,27 +605,15 @@ document.querySelectorAll('.tabs').forEach(tabContainer => {
 });
 
 // ============================================
-// Utility Functions
+// Utilities
 // ============================================
 
 function formatCurrency(value) {
     if (value === null || value === undefined || isNaN(value)) return '₹0';
-
     const absValue = Math.abs(value);
     const sign = value < 0 ? '-' : '';
-
-    // Format with Indian number system
-    const formatted = absValue.toLocaleString('en-IN', {
-        maximumFractionDigits: 0,
-        minimumFractionDigits: 0
-    });
-
-    return `${sign}₹${formatted}`;
+    return `${sign}₹${absValue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
 }
 
-// ============================================
-// Initial Setup
-// ============================================
-
-console.log('Tax Gain Harvester loaded');
-console.log('Upload your Groww spreadsheets to calculate optimal LTCG harvesting.');
+console.log('Tax Gain Harvester v2.0 loaded');
+console.log('Drop your Groww files to auto-detect and calculate.');

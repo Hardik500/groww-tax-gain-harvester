@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -9,6 +10,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
 </head>
+
 <body>
     <div class="app-container">
         <!-- Header -->
@@ -17,61 +19,45 @@
                 <span class="logo-icon">📊</span>
                 <h1>Tax Gain Harvester</h1>
             </div>
-            <div class="subtitle">Optimize your ₹1.25L LTCG exemption</div>
+            <div class="subtitle">Optimize your ₹1.25L LTCG exemption • India FY 2024-25</div>
         </header>
 
-        <!-- File Upload Section -->
+        <!-- Upload Section - Single Drop Zone -->
         <section class="upload-section">
-            <h2>📁 Upload Groww Spreadsheets</h2>
-            <p class="section-desc">Upload your exported files from Groww. Required files are highlighted.</p>
-            
-            <div class="file-grid">
-                <div class="file-card required" data-file-type="mf-holdings">
-                    <div class="file-icon">📈</div>
-                    <div class="file-info">
-                        <h3>MF Holdings</h3>
-                        <p>Mutual_Funds_*_*.xlsx</p>
-                    </div>
-                    <div class="file-status">
-                        <span class="status-badge pending">Required</span>
-                    </div>
-                    <input type="file" accept=".xlsx,.xls" class="file-input" id="mf-holdings-input">
-                </div>
+            <h2>📁 Upload Groww Files</h2>
+            <p class="section-desc">Drop all your Groww spreadsheets here. Files will be auto-detected based on their
+                names.</p>
 
-                <div class="file-card required" data-file-type="mf-capital-gains">
-                    <div class="file-icon">💰</div>
-                    <div class="file-info">
-                        <h3>MF Capital Gains</h3>
-                        <p>Mutual_Funds_Capital_Gains_*.xlsx</p>
-                    </div>
-                    <div class="file-status">
-                        <span class="status-badge pending">Required</span>
-                    </div>
-                    <input type="file" accept=".xlsx,.xls" class="file-input" id="mf-capital-gains-input">
+            <div class="dropzone" id="dropzone">
+                <div class="dropzone-content">
+                    <span class="dropzone-icon">📂</span>
+                    <p class="dropzone-text">Drop files here or <span class="browse-link">browse</span></p>
+                    <p class="dropzone-hint">Supports: Holdings, Capital Gains reports from Groww</p>
                 </div>
+                <input type="file" id="file-input" accept=".xlsx,.xls" multiple>
+            </div>
 
-                <div class="file-card required" data-file-type="stock-holdings">
-                    <div class="file-icon">📊</div>
-                    <div class="file-info">
-                        <h3>Stock Holdings</h3>
-                        <p>Stocks_Holdings_Statement_*.xlsx</p>
-                    </div>
-                    <div class="file-status">
-                        <span class="status-badge pending">Required</span>
-                    </div>
-                    <input type="file" accept=".xlsx,.xls" class="file-input" id="stock-holdings-input">
+            <!-- File Status List -->
+            <div class="file-status-list" id="file-status-list">
+                <div class="file-status-item" data-type="mf-holdings">
+                    <span class="status-icon">⏳</span>
+                    <span class="status-name">MF Holdings</span>
+                    <span class="status-file">Mutual_Funds_*_*.xlsx</span>
                 </div>
-
-                <div class="file-card required" data-file-type="stock-capital-gains">
-                    <div class="file-icon">💵</div>
-                    <div class="file-info">
-                        <h3>Stock Capital Gains</h3>
-                        <p>Stocks_Capital_Gains_Report_*.xlsx</p>
-                    </div>
-                    <div class="file-status">
-                        <span class="status-badge pending">Required</span>
-                    </div>
-                    <input type="file" accept=".xlsx,.xls" class="file-input" id="stock-capital-gains-input">
+                <div class="file-status-item" data-type="mf-capital-gains">
+                    <span class="status-icon">⏳</span>
+                    <span class="status-name">MF Capital Gains</span>
+                    <span class="status-file">Mutual_Funds_Capital_Gains_*.xlsx</span>
+                </div>
+                <div class="file-status-item" data-type="stock-holdings">
+                    <span class="status-icon">⏳</span>
+                    <span class="status-name">Stock Holdings</span>
+                    <span class="status-file">Stocks_Holdings_*.xlsx</span>
+                </div>
+                <div class="file-status-item" data-type="stock-capital-gains">
+                    <span class="status-icon">⏳</span>
+                    <span class="status-name">Stock Capital Gains</span>
+                    <span class="status-file">Stocks_Capital_Gains_*.xlsx</span>
                 </div>
             </div>
 
@@ -81,95 +67,81 @@
             </button>
         </section>
 
-        <!-- Results Section (Hidden initially) -->
+        <!-- Results Section -->
         <section class="results-section" id="results-section" style="display: none;">
-            
+
             <!-- Summary Cards -->
             <div class="summary-grid">
                 <div class="summary-card">
-                    <div class="card-header">
-                        <span class="card-icon">🎯</span>
-                        <h3>LTCG Exemption Limit</h3>
-                    </div>
+                    <div class="card-label">LTCG Exemption Limit</div>
                     <div class="card-value">₹1,25,000</div>
                 </div>
-
-                <div class="summary-card realized">
-                    <div class="card-header">
-                        <span class="card-icon">✅</span>
-                        <h3>Already Realized LTCG</h3>
-                    </div>
+                <div class="summary-card warning">
+                    <div class="card-label">Already Realized LTCG</div>
                     <div class="card-value" id="realized-ltcg">₹0</div>
                     <div class="card-breakdown" id="realized-breakdown"></div>
                 </div>
-
-                <div class="summary-card remaining">
-                    <div class="card-header">
-                        <span class="card-icon">💎</span>
-                        <h3>Remaining to Harvest</h3>
-                    </div>
-                    <div class="card-value highlight" id="remaining-ltcg">₹1,25,000</div>
+                <div class="summary-card success">
+                    <div class="card-label">Remaining to Harvest</div>
+                    <div class="card-value" id="remaining-ltcg">₹1,25,000</div>
                 </div>
             </div>
 
             <!-- Already Redeemed Section -->
             <div class="data-section" id="redeemed-section">
-                <h2>📋 Already Redeemed This FY</h2>
-                <p class="section-desc">These investments have already been sold in FY 2025-26. Use for manual verification.</p>
-                
-                <div class="tabs">
-                    <button class="tab-btn active" data-tab="redeemed-mf">Mutual Funds</button>
-                    <button class="tab-btn" data-tab="redeemed-stocks">Stocks</button>
+                <div class="section-header">
+                    <h2>📋 Already Redeemed This FY</h2>
+                    <div class="tabs">
+                        <button class="tab-btn active" data-tab="redeemed-mf">Mutual Funds</button>
+                        <button class="tab-btn" data-tab="redeemed-stocks">Stocks</button>
+                    </div>
                 </div>
 
                 <div class="tab-content active" id="redeemed-mf">
-                    <div class="table-container">
-                        <table class="data-table">
-                            <thead>
-                                <tr>
-                                    <th>Scheme Name</th>
-                                    <th>Redeem Date</th>
-                                    <th>Units</th>
-                                    <th>STCG</th>
-                                    <th>LTCG</th>
-                                </tr>
-                            </thead>
-                            <tbody id="redeemed-mf-body"></tbody>
-                        </table>
-                    </div>
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Scheme Name</th>
+                                <th>Redeem Date</th>
+                                <th>Units</th>
+                                <th>STCG</th>
+                                <th>LTCG</th>
+                            </tr>
+                        </thead>
+                        <tbody id="redeemed-mf-body"></tbody>
+                    </table>
                 </div>
 
                 <div class="tab-content" id="redeemed-stocks">
-                    <div class="table-container">
-                        <table class="data-table">
-                            <thead>
-                                <tr>
-                                    <th>Stock Name</th>
-                                    <th>Sell Date</th>
-                                    <th>Qty</th>
-                                    <th>Buy Price</th>
-                                    <th>Sell Price</th>
-                                    <th>Realised P&L</th>
-                                    <th>Type</th>
-                                </tr>
-                            </thead>
-                            <tbody id="redeemed-stocks-body"></tbody>
-                        </table>
-                    </div>
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Stock Name</th>
+                                <th>Sell Date</th>
+                                <th>Qty</th>
+                                <th>Buy</th>
+                                <th>Sell</th>
+                                <th>P&L</th>
+                                <th>Type</th>
+                            </tr>
+                        </thead>
+                        <tbody id="redeemed-stocks-body"></tbody>
+                    </table>
                 </div>
             </div>
 
             <!-- Recommendations Section -->
             <div class="data-section recommendations" id="recommendations-section">
                 <h2>🚀 Recommended Actions</h2>
-                <p class="section-desc">Sell and rebuy these on the same day to harvest tax-free gains.</p>
-                
-                <div class="recommendation-cards" id="recommendation-cards"></div>
+                <p class="section-desc">Sell and rebuy same day to harvest tax-free gains. ELSS with 3-year lock-in are
+                    excluded.</p>
+
+                <div class="recommendation-list" id="recommendation-cards"></div>
 
                 <div class="totals-bar">
                     <div class="total-item">
                         <span class="total-label">Total LTCG to Harvest</span>
-                        <span class="total-value" id="total-ltcg-harvest">₹0</span>
+                        <span class="total-value success" id="total-ltcg-harvest">₹0</span>
                     </div>
                     <div class="total-item">
                         <span class="total-label">Capital Required</span>
@@ -180,59 +152,55 @@
 
             <!-- Current Holdings Section -->
             <div class="data-section" id="holdings-section">
-                <h2>📦 Current Holdings with Unrealized LTCG</h2>
-                <p class="section-desc">Holdings eligible for tax gain harvesting (held >12 months with gains)</p>
-                
-                <div class="tabs">
-                    <button class="tab-btn active" data-tab="holdings-mf">Mutual Funds</button>
-                    <button class="tab-btn" data-tab="holdings-stocks">Stocks</button>
+                <div class="section-header">
+                    <h2>📦 Current Holdings with Unrealized Gains</h2>
+                    <div class="tabs">
+                        <button class="tab-btn active" data-tab="holdings-mf">Mutual Funds</button>
+                        <button class="tab-btn" data-tab="holdings-stocks">Stocks</button>
+                    </div>
                 </div>
 
                 <div class="tab-content active" id="holdings-mf">
-                    <div class="table-container">
-                        <table class="data-table">
-                            <thead>
-                                <tr>
-                                    <th>Scheme Name</th>
-                                    <th>Units</th>
-                                    <th>Invested</th>
-                                    <th>Current Value</th>
-                                    <th>Unrealized Gain</th>
-                                    <th>Gain %</th>
-                                </tr>
-                            </thead>
-                            <tbody id="holdings-mf-body"></tbody>
-                        </table>
-                    </div>
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Scheme Name</th>
+                                <th>Units</th>
+                                <th>Invested</th>
+                                <th>Current</th>
+                                <th>Gain</th>
+                                <th>%</th>
+                            </tr>
+                        </thead>
+                        <tbody id="holdings-mf-body"></tbody>
+                    </table>
                 </div>
 
                 <div class="tab-content" id="holdings-stocks">
-                    <div class="table-container">
-                        <table class="data-table">
-                            <thead>
-                                <tr>
-                                    <th>Stock Name</th>
-                                    <th>Qty</th>
-                                    <th>Avg Buy</th>
-                                    <th>Current</th>
-                                    <th>Unrealized Gain</th>
-                                    <th>Gain %</th>
-                                </tr>
-                            </thead>
-                            <tbody id="holdings-stocks-body"></tbody>
-                        </table>
-                    </div>
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Stock Name</th>
+                                <th>Qty</th>
+                                <th>Avg Buy</th>
+                                <th>Current</th>
+                                <th>Gain</th>
+                                <th>%</th>
+                            </tr>
+                        </thead>
+                        <tbody id="holdings-stocks-body"></tbody>
+                    </table>
                 </div>
             </div>
         </section>
 
         <!-- Footer -->
         <footer class="footer">
-            <p>⚠️ This tool is for informational purposes only. Consult a tax advisor for accuracy.</p>
-            <p>Tax Gain Harvester v1.0 | India FY 2024-25</p>
+            <p>⚠️ This is for informational purposes. Consult a tax advisor for accuracy.</p>
         </footer>
     </div>
 
     <script src="app.js"></script>
 </body>
+
 </html>
