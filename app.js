@@ -149,7 +149,9 @@ function readExcelFile(file) {
 
 function updateCalculateButton() {
     const btn = document.getElementById('calculate-btn');
-    const allLoaded = Object.values(appData.filesLoaded).every(v => v);
+    // Order history is optional - only require core 4 files
+    const requiredFiles = ['mf-holdings', 'mf-capital-gains', 'stock-holdings', 'stock-capital-gains'];
+    const allLoaded = requiredFiles.every(f => appData.filesLoaded[f]);
     btn.disabled = !allLoaded;
 }
 
