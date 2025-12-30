@@ -846,6 +846,67 @@ section>h2 {
     font-weight: 500;
 }
 
+/* FY Analysis Styles */
+.fy-analysis-list {
+    margin-bottom: 16px;
+}
+
+.fy-item {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    margin-bottom: 12px;
+}
+
+.fy-item.under-utilized {
+    border-left: 3px solid var(--warning);
+}
+
+.fy-item.fully-utilized {
+    border-left: 3px solid var(--success);
+}
+
+.fy-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.fy-name {
+    font-weight: 700;
+    font-size: 1rem;
+}
+
+.fy-status {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+
+.fy-details {
+    font-size: 0.85rem;
+}
+
+.fy-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 4px 0;
+    border-bottom: 1px dashed var(--border);
+}
+
+.fy-row:last-child {
+    border-bottom: none;
+}
+
+.fy-row.warning {
+    color: var(--warning);
+}
+
+.fy-row .success {
+    color: var(--success);
+}
+
 /* Empty state */
 .empty-state {
     text-align: center;

@@ -826,6 +826,180 @@ function formatCurrency(value) {
 }
 
 // ============================================
+// FY-wise Historical Analysis
+// ============================================
+
+// Get Indian Financial Year from date
+function getFinancialYear(dateStr) {
+    if (!dateStr) return null;
+
+    let date;
+    // Handle different date formats
+    if (typeof dateStr === 'string') {
+        // "DD-MM-YYYY" or "YYYY-MM-DD" or "DD Mon YYYY"
+        if (dateStr.includes('-')) {
+            const parts = dateStr.split('-');
+            if (parts[0].length === 4) { // YYYY-MM-DD
+                date = new Date(dateStr);
+            } else { // DD-MM-YYYY
+                date = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
+            }
+        } else {
+            date = new Date(dateStr);
+        }
+    } else {
+        date = new Date(dateStr);
+    }
+
+    if (isNaN(date.getTime())) return null;
+
+    const month = date.getMonth(); // 0-indexed
+    const year = date.getFullYear();
+
+    // FY starts April (month 3), so Jan-Mar belongs to previous FY
+    if (month < 3) { // Jan, Feb, Mar
+        return `FY ${year - 1}-${String(year).slice(2)}`;
+    } else {
+        return `FY ${year}-${String(year + 1).slice(2)}`;
+    }
+}
+
+// Get exemption limit for a given FY
+function getExemptionLimit(fy) {
+    // Pre-July 2024: ₹1,00,000, Post-July 2024: ₹1,25,000
+    // FY 2024-25 onwards uses ₹1.25L
+    const year = parseInt(fy.split(' ')[1].split('-')[0]);
+    return year >= 2024 ? 125000 : 100000;
+}
+
+function analyzeFYHistory() {
+    const fyData = {};
+
+    // Process MF Capital Gains
+    appData.mfCapitalGains.forEach(g => {
+        const fy = getFinancialYear(g.redeemDate);
+        if (!fy) return;
+
+        if (!fyData[fy]) {
+            fyData[fy] = { mfLtcg: 0, mfStcg: 0, stockLtcg: 0, stockStcg: 0, transactions: 0 };
+        }
+        fyData[fy].mfLtcg += g.ltcg || 0;
+        fyData[fy].mfStcg += g.stcg || 0;
+        fyData[fy].transactions++;
+    });
+
+    // Process Stock Capital Gains
+    [...(appData.stockCapitalGains.longTerm || [])].forEach(t => {
+        const fy = getFinancialYear(t.sellDate);
+        if (!fy) return;
+
+        if (!fyData[fy]) {
+            fyData[fy] = { mfLtcg: 0, mfStcg: 0, stockLtcg: 0, stockStcg: 0, transactions: 0 };
+        }
+        fyData[fy].stockLtcg += t.realisedPnL || 0;
+        fyData[fy].transactions++;
+    });
+
+    [...(appData.stockCapitalGains.shortTerm || [])].forEach(t => {
+        const fy = getFinancialYear(t.sellDate);
+        if (!fy) return;
+
+        if (!fyData[fy]) {
+            fyData[fy] = { mfLtcg: 0, mfStcg: 0, stockLtcg: 0, stockStcg: 0, transactions: 0 };
+        }
+        fyData[fy].stockStcg += t.realisedPnL || 0;
+        fyData[fy].transactions++;
+    });
+
+    // Calculate totals and exemption usage for each FY
+    const result = Object.entries(fyData)
+        .map(([fy, data]) => {
+            const totalLtcg = data.mfLtcg + Math.max(0, data.stockLtcg);
+            const totalStcg = data.mfStcg + Math.max(0, data.stockStcg);
+            const exemptionLimit = getExemptionLimit(fy);
+            const exemptionUsed = Math.min(totalLtcg, exemptionLimit);
+            const exemptionWasted = Math.max(0, exemptionLimit - totalLtcg);
+            const taxSaved = Math.round(exemptionUsed * 0.125);
+            const missedSavings = Math.round(exemptionWasted * 0.125);
+
+            return {
+                fy,
+                ...data,
+                totalLtcg,
+                totalStcg,
+                exemptionLimit,
+                exemptionUsed,
+                exemptionWasted,
+                taxSaved,
+                missedSavings
+            };
+        })
+        .sort((a, b) => b.fy.localeCompare(a.fy)); // Sort by FY descending
+
+    return result;
+}
+
+function showFYAnalysis() {
+    const analysis = analyzeFYHistory();
+    const modal = document.getElementById('history-modal');
+    const content = document.getElementById('history-content');
+
+    if (analysis.length === 0) {
+        content.innerHTML = '<p class="empty-state">No historical data available. Upload Capital Gains reports covering multiple years to see FY-wise analysis.</p>';
+    } else {
+        const totalSaved = analysis.reduce((sum, a) => sum + a.taxSaved, 0);
+        const totalMissed = analysis.reduce((sum, a) => sum + a.missedSavings, 0);
+
+        content.innerHTML = `
+            <div class="history-summary">
+                <div class="history-stat">
+                    <span class="label">Total Tax Saved</span>
+                    <span class="value success">₹${totalSaved.toLocaleString('en-IN')}</span>
+                </div>
+                <div class="history-stat">
+                    <span class="label">Missed Savings</span>
+                    <span class="value" style="color: var(--error);">₹${totalMissed.toLocaleString('en-IN')}</span>
+                </div>
+            </div>
+            <div class="fy-analysis-list">
+                ${analysis.map(a => `
+                    <div class="fy-item ${a.exemptionWasted > 0 ? 'under-utilized' : 'fully-utilized'}">
+                        <div class="fy-header">
+                            <span class="fy-name">${a.fy}</span>
+                            <span class="fy-status">${a.exemptionWasted > 0 ? '⚠️ Under-utilized' : '✅ Fully utilized'}</span>
+                        </div>
+                        <div class="fy-details">
+                            <div class="fy-row">
+                                <span>LTCG Realized:</span>
+                                <span>₹${a.totalLtcg.toLocaleString('en-IN')}</span>
+                            </div>
+                            <div class="fy-row">
+                                <span>Exemption Limit:</span>
+                                <span>₹${a.exemptionLimit.toLocaleString('en-IN')}</span>
+                            </div>
+                            <div class="fy-row">
+                                <span>Exemption Used:</span>
+                                <span class="success">₹${a.exemptionUsed.toLocaleString('en-IN')}</span>
+                            </div>
+                            ${a.exemptionWasted > 0 ? `
+                            <div class="fy-row warning">
+                                <span>Unused Exemption:</span>
+                                <span>₹${a.exemptionWasted.toLocaleString('en-IN')} (₹${a.missedSavings.toLocaleString('en-IN')} missed savings)</span>
+                            </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    }
+
+    // Update modal title
+    document.querySelector('#history-modal .modal-header h2').textContent = '📈 FY-wise Tax Harvesting Analysis';
+    modal.style.display = 'flex';
+}
+
+// ============================================
 // Export & History Functions
 // ============================================
 
@@ -941,6 +1115,7 @@ function clearHistory() {
 document.getElementById('export-btn').addEventListener('click', exportReport);
 document.getElementById('save-btn').addEventListener('click', saveSession);
 document.getElementById('history-btn').addEventListener('click', showHistory);
+document.getElementById('fy-analysis-btn').addEventListener('click', showFYAnalysis);
 
 console.log('Tax Gain Harvester v4.0 loaded');
 console.log('Drop your Groww files to auto-detect and calculate.');
