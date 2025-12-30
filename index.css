@@ -204,6 +204,63 @@ section>h2 {
     white-space: nowrap;
 }
 
+/* Upload Instructions */
+.upload-instructions {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    margin-top: 20px;
+}
+
+.upload-instructions h3 {
+    font-size: 0.9rem;
+    margin: 0 0 16px 0;
+    color: var(--text-primary);
+}
+
+.instruction-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+}
+
+.instruction-item {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.instruction-item .file-type {
+    font-weight: 600;
+    font-size: 0.8rem;
+    color: var(--accent);
+}
+
+.instruction-item .file-path {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+
+.instruction-item .date-range {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    margin-top: 4px;
+}
+
+.instruction-tip {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    margin: 16px 0 0 0;
+    padding: 8px 12px;
+    background: var(--warning-bg);
+    border-radius: var(--radius);
+}
+
 /* ========================================
    Calculate Button
    ======================================== */
