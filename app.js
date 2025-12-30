@@ -17,6 +17,7 @@ const LTCG_HOLDING_MONTHS = 12;
 const FILE_PATTERNS = {
     'mf-holdings': /^Mutual_Funds_\d+_[\d-]+_[\d-]+\.xlsx$/i,
     'mf-capital-gains': /^Mutual_Funds_Capital_Gains_Report_[\d-]+_[\d-]+\.xlsx$/i,
+    'mf-order-history': /^Mutual_Funds_Order_History_[\d-]+_[\d-]+\.xlsx$/i,
     'stock-holdings': /^Stocks_Holdings_Statement_\d+_[\d-]+\.xlsx$/i,
     'stock-capital-gains': /^Stocks_Capital_Gains_Report_\d+_[\d-]+_[\d-]+\.xlsx$/i
 };
@@ -25,11 +26,13 @@ const FILE_PATTERNS = {
 const appData = {
     mfHoldings: [],
     mfCapitalGains: [],
+    mfOrderHistory: [],
     stockHoldings: [],
     stockCapitalGains: [],
     filesLoaded: {
         'mf-holdings': false,
         'mf-capital-gains': false,
+        'mf-order-history': false,
         'stock-holdings': false,
         'stock-capital-gains': false
     },
@@ -91,6 +94,9 @@ async function handleFiles(files) {
                     break;
                 case 'mf-capital-gains':
                     appData.mfCapitalGains = parseMFCapitalGains(data);
+                    break;
+                case 'mf-order-history':
+                    appData.mfOrderHistory = parseMFOrderHistory(data);
                     break;
                 case 'stock-holdings':
                     appData.stockHoldings = parseStockHoldings(data);
@@ -234,6 +240,61 @@ function parseMFCapitalGains(data) {
     }
 
     return gains;
+}
+
+// Parse MF Order History to get purchase dates per scheme
+function parseMFOrderHistory(data) {
+    const orders = [];
+    const sheet = Object.values(data)[0];
+
+    let startRow = -1;
+    for (let i = 0; i < sheet.length; i++) {
+        if (sheet[i] && sheet[i][0] === 'Scheme Name' && sheet[i][1] === 'Transaction Type') {
+            startRow = i + 1;
+            break;
+        }
+    }
+
+    if (startRow === -1) return orders;
+
+    for (let i = startRow; i < sheet.length; i++) {
+        const row = sheet[i];
+        if (!row || !row[0] || row[0].toString().trim() === '') continue;
+
+        const transactionType = row[1]?.toString().toUpperCase() || '';
+        if (transactionType !== 'PURCHASE') continue;
+
+        orders.push({
+            schemeName: row[0],
+            type: 'PURCHASE',
+            units: parseFloat(row[2]) || 0,
+            nav: parseFloat(row[3]) || 0,
+            amount: parseFloat(row[4]?.toString().replace(/,/g, '')) || 0,
+            date: row[5] // Keep as string "DD Mon YYYY"
+        });
+    }
+
+    return orders;
+}
+
+// Get buy date range for a scheme from order history
+function getSchemeByDates(schemeName) {
+    const purchases = appData.mfOrderHistory.filter(o =>
+        o.schemeName.toLowerCase().includes(schemeName.toLowerCase().split(' ')[0]) ||
+        schemeName.toLowerCase().includes(o.schemeName.toLowerCase().split(' ')[0])
+    );
+
+    if (purchases.length === 0) return null;
+
+    // Sort by date
+    const dates = purchases.map(p => p.date).filter(d => d);
+    if (dates.length === 0) return null;
+
+    return {
+        first: dates[dates.length - 1], // Oldest (list is DESC)
+        last: dates[0], // Newest
+        count: dates.length
+    };
 }
 
 function parseStockHoldings(data) {
@@ -630,11 +691,23 @@ function generateRecommendations() {
             </div>
         `;
     } else {
-        container.innerHTML = recommendations.map((r, i) => `
+        container.innerHTML = recommendations.map((r, i) => {
+            // Get buy dates for MF from order history
+            let buyDateInfo = '';
+            if (r.type === 'MF') {
+                const dates = getSchemeByDates(r.name);
+                if (dates) {
+                    buyDateInfo = dates.count > 1
+                        ? `${dates.first} → ${dates.last}`
+                        : dates.first;
+                }
+            }
+
+            return `
             <div class="recommendation-card">
                 <div class="rec-info">
                     <div class="rec-name">${i + 1}. ${r.name}</div>
-                    <div class="rec-type">${r.type} • ${(r.efficiency * 100).toFixed(0)}% efficiency</div>
+                    <div class="rec-type">${r.type} • ${(r.efficiency * 100).toFixed(0)}% eff${buyDateInfo ? ` • 📅 ${buyDateInfo}` : ''}</div>
                 </div>
                 <div class="rec-stat">
                     <div class="label">Sell</div>
@@ -649,7 +722,7 @@ function generateRecommendations() {
                     <div class="value">${formatCurrency(r.capitalRequired)}</div>
                 </div>
             </div>
-        `).join('');
+        `}).join('');
     }
 
     document.getElementById('total-ltcg-harvest').textContent = formatCurrency(accumulatedLtcg);
