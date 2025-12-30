@@ -1,0 +1,628 @@
+/**
+ * Tax Gain Harvester
+ * Calculate optimal LTCG harvesting for India's ₹1.25L exemption
+ */
+
+// ============================================
+// Constants & Configuration
+// ============================================
+
+const LTCG_EXEMPTION_LIMIT = 125000;
+const LTCG_HOLDING_MONTHS = 12;
+
+// Data storage
+const appData = {
+    mfHoldings: [],
+    mfCapitalGains: [],
+    stockHoldings: [],
+    stockCapitalGains: [],
+    filesLoaded: {
+        'mf-holdings': false,
+        'mf-capital-gains': false,
+        'stock-holdings': false,
+        'stock-capital-gains': false
+    }
+};
+
+// ============================================
+// File Upload Handling
+// ============================================
+
+document.querySelectorAll('.file-card').forEach(card => {
+    const fileType = card.dataset.fileType;
+    const input = card.querySelector('.file-input');
+
+    input.addEventListener('change', async (e) => {
+        if (e.target.files.length > 0) {
+            const file = e.target.files[0];
+            await processFile(file, fileType, card);
+        }
+    });
+});
+
+async function processFile(file, fileType, card) {
+    try {
+        const data = await readExcelFile(file);
+
+        switch (fileType) {
+            case 'mf-holdings':
+                appData.mfHoldings = parseMFHoldings(data);
+                break;
+            case 'mf-capital-gains':
+                appData.mfCapitalGains = parseMFCapitalGains(data);
+                break;
+            case 'stock-holdings':
+                appData.stockHoldings = parseStockHoldings(data);
+                break;
+            case 'stock-capital-gains':
+                appData.stockCapitalGains = parseStockCapitalGains(data);
+                break;
+        }
+
+        // Update UI
+        appData.filesLoaded[fileType] = true;
+        card.classList.add('uploaded');
+        card.querySelector('.status-badge').textContent = 'Loaded';
+        card.querySelector('.status-badge').classList.remove('pending');
+        card.querySelector('.status-badge').classList.add('uploaded');
+
+        updateCalculateButton();
+
+    } catch (error) {
+        console.error(`Error processing ${fileType}:`, error);
+        alert(`Error reading file: ${error.message}`);
+    }
+}
+
+function readExcelFile(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const workbook = XLSX.read(e.target.result, { type: 'binary' });
+                const result = {};
+                workbook.SheetNames.forEach(sheetName => {
+                    result[sheetName] = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1 });
+                });
+                resolve(result);
+            } catch (error) {
+                reject(error);
+            }
+        };
+        reader.onerror = reject;
+        reader.readAsBinaryString(file);
+    });
+}
+
+function updateCalculateButton() {
+    const btn = document.getElementById('calculate-btn');
+    const allLoaded = Object.values(appData.filesLoaded).every(v => v);
+    btn.disabled = !allLoaded;
+}
+
+// ============================================
+// File Parsers
+// ============================================
+
+function parseMFHoldings(data) {
+    const holdings = [];
+    const sheet = Object.values(data)[0]; // First sheet
+
+    let startRow = -1;
+    for (let i = 0; i < sheet.length; i++) {
+        if (sheet[i] && sheet[i][0] === 'Scheme Name') {
+            startRow = i + 1;
+            break;
+        }
+    }
+
+    if (startRow === -1) return holdings;
+
+    for (let i = startRow; i < sheet.length; i++) {
+        const row = sheet[i];
+        if (!row || !row[0] || row[0].toString().trim() === '') continue;
+
+        holdings.push({
+            schemeName: row[0],
+            amc: row[1],
+            category: row[2],
+            subCategory: row[3],
+            folioNo: row[4],
+            source: row[5],
+            units: parseFloat(row[6]) || 0,
+            investedValue: parseFloat(row[7]) || 0,
+            currentValue: parseFloat(row[8]) || 0,
+            returns: parseFloat(row[9]) || 0,
+            xirr: row[10]
+        });
+    }
+
+    return holdings;
+}
+
+function parseMFCapitalGains(data) {
+    const gains = [];
+    const sheet = Object.values(data)[0];
+
+    // Find the equity section header row
+    let startRow = -1;
+    for (let i = 0; i < sheet.length; i++) {
+        if (sheet[i] && sheet[i][0] === 'Scheme Name' && sheet[i][1] === 'Scheme Code') {
+            startRow = i + 1;
+            break;
+        }
+    }
+
+    if (startRow === -1) return gains;
+
+    for (let i = startRow; i < sheet.length; i++) {
+        const row = sheet[i];
+        if (!row || !row[0] || row[0].toString().trim() === '' || row[0] === 'Scheme Name') continue;
+        if (row[0].includes('Category') || row[0].includes('Note') || row[0].includes('Disclaimer')) break;
+
+        gains.push({
+            schemeName: row[0],
+            schemeCode: row[1],
+            category: row[2],
+            folioNumber: row[3],
+            purchaseTransactionId: row[4],
+            purchaseDate: parseExcelDate(row[5]),
+            matchedQuantity: parseFloat(row[6]) || 0,
+            purchasePrice: parseFloat(row[7]) || 0,
+            redeemTransactionId: row[8],
+            redeemDate: parseExcelDate(row[9]),
+            grandfatheredNav: parseFloat(row[10]) || 0,
+            redeemPrice: parseFloat(row[11]) || 0,
+            stcg: parseFloat(row[12]) || 0,
+            ltcg: parseFloat(row[13]) || 0
+        });
+    }
+
+    return gains;
+}
+
+function parseStockHoldings(data) {
+    const holdings = [];
+    const sheet = Object.values(data)[0];
+
+    let startRow = -1;
+    for (let i = 0; i < sheet.length; i++) {
+        if (sheet[i] && sheet[i][0] === 'Stock Name') {
+            startRow = i + 1;
+            break;
+        }
+    }
+
+    if (startRow === -1) return holdings;
+
+    for (let i = startRow; i < sheet.length; i++) {
+        const row = sheet[i];
+        if (!row || !row[0] || row[0].toString().trim() === '') continue;
+
+        holdings.push({
+            stockName: row[0],
+            isin: row[1],
+            quantity: parseFloat(row[2]) || 0,
+            avgBuyPrice: parseFloat(row[3]) || 0,
+            buyValue: parseFloat(row[4]) || 0,
+            closingPrice: parseFloat(row[5]) || 0,
+            closingValue: parseFloat(row[6]) || 0,
+            unrealisedPnL: parseFloat(row[7]) || 0
+        });
+    }
+
+    return holdings;
+}
+
+function parseStockCapitalGains(data) {
+    const result = {
+        intraday: [],
+        shortTerm: [],
+        longTerm: [],
+        summary: {}
+    };
+
+    const sheet = Object.values(data)[0];
+
+    // Find summary values
+    for (let i = 0; i < Math.min(30, sheet.length); i++) {
+        const row = sheet[i];
+        if (!row) continue;
+
+        if (row[0] === 'Short Term P&L') result.summary.shortTermPnL = parseFloat(row[1]) || 0;
+        if (row[0] === 'Long Term P&L') result.summary.longTermPnL = parseFloat(row[1]) || 0;
+    }
+
+    // Parse trade sections
+    let currentSection = null;
+
+    for (let i = 0; i < sheet.length; i++) {
+        const row = sheet[i];
+        if (!row) continue;
+
+        if (row[0] === 'Intraday trades') {
+            currentSection = 'intraday';
+            continue;
+        }
+        if (row[0] === 'Short Term trades') {
+            currentSection = 'shortTerm';
+            continue;
+        }
+        if (row[0] === 'Long Term trades') {
+            currentSection = 'longTerm';
+            continue;
+        }
+
+        // Parse trade row
+        if (currentSection && row[0] && row[0] !== 'Stock name' && !row[0].includes('trades')) {
+            const trade = {
+                stockName: row[0],
+                isin: row[1],
+                quantity: parseFloat(row[2]) || 0,
+                buyDate: row[3],
+                buyPrice: parseFloat(row[4]) || 0,
+                buyValue: parseFloat(row[5]) || 0,
+                sellDate: row[6],
+                sellPrice: parseFloat(row[7]) || 0,
+                sellValue: parseFloat(row[8]) || 0,
+                realisedPnL: parseFloat(row[9]) || 0
+            };
+
+            if (trade.stockName && trade.stockName.trim()) {
+                result[currentSection].push(trade);
+            }
+        }
+
+        // Check for section end
+        if (currentSection && row[0] && (row[0].includes('Term') && row[0] !== 'Long Term trades' && row[0] !== 'Short Term trades')) {
+            currentSection = null;
+        }
+    }
+
+    return result;
+}
+
+function parseExcelDate(value) {
+    if (!value) return null;
+
+    // If it's already a string date like "2024-12-16"
+    if (typeof value === 'string') {
+        return value;
+    }
+
+    // If it's an Excel serial date number
+    if (typeof value === 'number') {
+        const date = new Date((value - 25569) * 86400 * 1000);
+        return date.toISOString().split('T')[0];
+    }
+
+    return value.toString();
+}
+
+// ============================================
+// Calculate Button Handler
+// ============================================
+
+document.getElementById('calculate-btn').addEventListener('click', calculateHarvesting);
+
+function calculateHarvesting() {
+    // Calculate realized LTCG from this FY
+    const mfLtcgRealized = appData.mfCapitalGains.reduce((sum, g) => sum + g.ltcg, 0);
+    const stockLtcgRealized = appData.stockCapitalGains.summary?.longTermPnL || 0;
+    const totalRealizedLtcg = mfLtcgRealized + stockLtcgRealized;
+
+    const remainingExemption = Math.max(0, LTCG_EXEMPTION_LIMIT - totalRealizedLtcg);
+
+    // Update summary cards
+    document.getElementById('realized-ltcg').textContent = formatCurrency(totalRealizedLtcg);
+    document.getElementById('realized-breakdown').innerHTML = `
+        MF: ${formatCurrency(mfLtcgRealized)} | Stocks: ${formatCurrency(stockLtcgRealized)}
+    `;
+    document.getElementById('remaining-ltcg').textContent = formatCurrency(remainingExemption);
+
+    // Show redeemed MFs
+    renderRedeemedMFs();
+
+    // Show redeemed stocks
+    renderRedeemedStocks();
+
+    // Show current holdings
+    renderCurrentHoldings();
+
+    // Generate recommendations
+    generateRecommendations(remainingExemption);
+
+    // Show results section
+    document.getElementById('results-section').style.display = 'block';
+
+    // Scroll to results
+    document.getElementById('results-section').scrollIntoView({ behavior: 'smooth' });
+}
+
+// ============================================
+// Render Functions
+// ============================================
+
+function renderRedeemedMFs() {
+    const tbody = document.getElementById('redeemed-mf-body');
+
+    // Group by scheme name and aggregate
+    const grouped = {};
+    appData.mfCapitalGains.forEach(g => {
+        if (!grouped[g.schemeName]) {
+            grouped[g.schemeName] = { redeemDate: g.redeemDate, units: 0, stcg: 0, ltcg: 0 };
+        }
+        grouped[g.schemeName].units += g.matchedQuantity;
+        grouped[g.schemeName].stcg += g.stcg;
+        grouped[g.schemeName].ltcg += g.ltcg;
+    });
+
+    tbody.innerHTML = Object.entries(grouped).map(([name, data]) => `
+        <tr>
+            <td>${name}</td>
+            <td>${data.redeemDate || 'N/A'}</td>
+            <td>${data.units.toFixed(3)}</td>
+            <td class="${data.stcg >= 0 ? 'positive' : 'negative'}">${formatCurrency(data.stcg)}</td>
+            <td class="${data.ltcg >= 0 ? 'positive' : 'negative'}">${formatCurrency(data.ltcg)}</td>
+        </tr>
+    `).join('');
+
+    if (Object.keys(grouped).length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color: var(--text-muted);">No MF redemptions in this FY</td></tr>';
+    }
+}
+
+function renderRedeemedStocks() {
+    const tbody = document.getElementById('redeemed-stocks-body');
+
+    // Combine all realized stock trades
+    const allTrades = [
+        ...appData.stockCapitalGains.shortTerm.map(t => ({ ...t, type: 'Short Term' })),
+        ...appData.stockCapitalGains.longTerm.map(t => ({ ...t, type: 'Long Term' }))
+    ];
+
+    tbody.innerHTML = allTrades.slice(0, 50).map(trade => `
+        <tr>
+            <td>${trade.stockName}</td>
+            <td>${trade.sellDate || 'N/A'}</td>
+            <td>${trade.quantity}</td>
+            <td>${formatCurrency(trade.buyPrice)}</td>
+            <td>${formatCurrency(trade.sellPrice)}</td>
+            <td class="${trade.realisedPnL >= 0 ? 'positive' : 'negative'}">${formatCurrency(trade.realisedPnL)}</td>
+            <td><span class="status-badge ${trade.type === 'Long Term' ? 'uploaded' : 'pending'}">${trade.type}</span></td>
+        </tr>
+    `).join('');
+
+    if (allTrades.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; color: var(--text-muted);">No stock redemptions in this FY</td></tr>';
+    }
+
+    if (allTrades.length > 50) {
+        tbody.innerHTML += `<tr><td colspan="7" style="text-align:center; color: var(--text-muted);">... and ${allTrades.length - 50} more trades</td></tr>`;
+    }
+}
+
+function renderCurrentHoldings() {
+    // MF Holdings
+    const mfBody = document.getElementById('holdings-mf-body');
+    const mfWithGains = appData.mfHoldings
+        .filter(h => h.returns > 0)
+        .sort((a, b) => b.returns - a.returns);
+
+    mfBody.innerHTML = mfWithGains.map(h => `
+        <tr>
+            <td>${h.schemeName}</td>
+            <td>${h.units.toFixed(3)}</td>
+            <td>${formatCurrency(h.investedValue)}</td>
+            <td>${formatCurrency(h.currentValue)}</td>
+            <td class="positive">${formatCurrency(h.returns)}</td>
+            <td class="positive">${((h.returns / h.investedValue) * 100).toFixed(2)}%</td>
+        </tr>
+    `).join('');
+
+    // Stock Holdings
+    const stockBody = document.getElementById('holdings-stocks-body');
+    const stocksWithGains = appData.stockHoldings
+        .filter(h => h.unrealisedPnL > 0)
+        .sort((a, b) => b.unrealisedPnL - a.unrealisedPnL);
+
+    stockBody.innerHTML = stocksWithGains.map(h => `
+        <tr>
+            <td>${h.stockName}</td>
+            <td>${h.quantity}</td>
+            <td>${formatCurrency(h.avgBuyPrice)}</td>
+            <td>${formatCurrency(h.closingPrice)}</td>
+            <td class="positive">${formatCurrency(h.unrealisedPnL)}</td>
+            <td class="positive">${((h.unrealisedPnL / h.buyValue) * 100).toFixed(2)}%</td>
+        </tr>
+    `).join('');
+}
+
+function generateRecommendations(remainingExemption) {
+    const container = document.getElementById('recommendation-cards');
+
+    if (remainingExemption <= 0) {
+        container.innerHTML = `
+            <div class="recommendation-card" style="border-color: var(--warning); background: var(--warning-bg);">
+                <div>
+                    <div class="rec-name">⚠️ LTCG Limit Already Exhausted</div>
+                    <div class="rec-type">You have already realized ₹1.25L+ in LTCG this financial year.</div>
+                </div>
+            </div>
+        `;
+        document.getElementById('total-ltcg-harvest').textContent = '₹0';
+        document.getElementById('total-capital-required').textContent = '₹0';
+        return;
+    }
+
+    // Calculate efficiency for each holding (gain per capital required)
+    const candidates = [];
+
+    // MF candidates (only those with positive gains)
+    appData.mfHoldings.forEach(h => {
+        if (h.returns > 0) {
+            const gainPerUnit = h.returns / h.units;
+            const pricePerUnit = h.currentValue / h.units;
+            candidates.push({
+                type: 'MF',
+                name: h.schemeName,
+                totalUnits: h.units,
+                totalGain: h.returns,
+                currentValue: h.currentValue,
+                investedValue: h.investedValue,
+                gainPerUnit,
+                pricePerUnit,
+                efficiency: h.returns / h.currentValue // gain per rupee of capital
+            });
+        }
+    });
+
+    // Stock candidates (only those with positive gains and held long term)
+    // Note: Without purchase date info, we assume all holdings are LTCG eligible
+    appData.stockHoldings.forEach(h => {
+        if (h.unrealisedPnL > 0) {
+            const gainPerUnit = h.unrealisedPnL / h.quantity;
+            candidates.push({
+                type: 'Stock',
+                name: h.stockName,
+                totalUnits: h.quantity,
+                totalGain: h.unrealisedPnL,
+                currentValue: h.closingValue,
+                investedValue: h.buyValue,
+                gainPerUnit,
+                pricePerUnit: h.closingPrice,
+                efficiency: h.unrealisedPnL / h.closingValue
+            });
+        }
+    });
+
+    // Sort by efficiency (highest first)
+    candidates.sort((a, b) => b.efficiency - a.efficiency);
+
+    // Select holdings to fill remaining exemption
+    const recommendations = [];
+    let accumulatedLtcg = 0;
+    let totalCapitalRequired = 0;
+
+    for (const c of candidates) {
+        if (accumulatedLtcg >= remainingExemption) break;
+
+        const remainingToFill = remainingExemption - accumulatedLtcg;
+
+        // Calculate how many units to sell
+        let unitsToSell;
+        let ltcgFromSale;
+        let capitalRequired;
+
+        if (c.totalGain <= remainingToFill) {
+            // Sell all units
+            unitsToSell = c.totalUnits;
+            ltcgFromSale = c.totalGain;
+            capitalRequired = c.currentValue;
+        } else {
+            // Partial sell
+            unitsToSell = (remainingToFill / c.gainPerUnit);
+            if (c.type === 'Stock') {
+                unitsToSell = Math.floor(unitsToSell); // Stocks must be whole numbers
+            }
+            ltcgFromSale = unitsToSell * c.gainPerUnit;
+            capitalRequired = unitsToSell * c.pricePerUnit;
+        }
+
+        if (unitsToSell > 0 && ltcgFromSale > 0) {
+            recommendations.push({
+                ...c,
+                unitsToSell,
+                ltcgFromSale,
+                capitalRequired
+            });
+
+            accumulatedLtcg += ltcgFromSale;
+            totalCapitalRequired += capitalRequired;
+        }
+    }
+
+    // Render recommendations
+    if (recommendations.length === 0) {
+        container.innerHTML = `
+            <div class="recommendation-card" style="border-color: var(--text-muted);">
+                <div>
+                    <div class="rec-name">No LTCG-Eligible Holdings Found</div>
+                    <div class="rec-type">You don't have any holdings with unrealized long-term gains.</div>
+                </div>
+            </div>
+        `;
+    } else {
+        container.innerHTML = recommendations.map((r, i) => `
+            <div class="recommendation-card">
+                <div>
+                    <div class="rec-name">${i + 1}. ${r.name}</div>
+                    <div class="rec-type">${r.type} | Efficiency: ${(r.efficiency * 100).toFixed(1)}%</div>
+                </div>
+                <div class="rec-detail">
+                    <div class="rec-label">Sell</div>
+                    <div class="rec-value">${r.type === 'MF' ? r.unitsToSell.toFixed(3) + ' units' : r.unitsToSell + ' shares'}</div>
+                </div>
+                <div class="rec-detail">
+                    <div class="rec-label">LTCG</div>
+                    <div class="rec-value ltcg">${formatCurrency(r.ltcgFromSale)}</div>
+                </div>
+                <div class="rec-detail">
+                    <div class="rec-label">Capital Needed</div>
+                    <div class="rec-value">${formatCurrency(r.capitalRequired)}</div>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    // Update totals
+    document.getElementById('total-ltcg-harvest').textContent = formatCurrency(accumulatedLtcg);
+    document.getElementById('total-capital-required').textContent = formatCurrency(totalCapitalRequired);
+}
+
+// ============================================
+// Tab Switching
+// ============================================
+
+document.querySelectorAll('.tabs').forEach(tabContainer => {
+    tabContainer.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const tabId = btn.dataset.tab;
+            const parent = btn.closest('.data-section');
+
+            // Update buttons
+            parent.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+
+            // Update content
+            parent.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            parent.querySelector(`#${tabId}`).classList.add('active');
+        });
+    });
+});
+
+// ============================================
+// Utility Functions
+// ============================================
+
+function formatCurrency(value) {
+    if (value === null || value === undefined || isNaN(value)) return '₹0';
+
+    const absValue = Math.abs(value);
+    const sign = value < 0 ? '-' : '';
+
+    // Format with Indian number system
+    const formatted = absValue.toLocaleString('en-IN', {
+        maximumFractionDigits: 0,
+        minimumFractionDigits: 0
+    });
+
+    return `${sign}₹${formatted}`;
+}
+
+// ============================================
+// Initial Setup
+// ============================================
+
+console.log('Tax Gain Harvester loaded');
+console.log('Upload your Groww spreadsheets to calculate optimal LTCG harvesting.');
