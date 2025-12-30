@@ -722,6 +722,14 @@ function generateRecommendations() {
                 }
             }
 
+            // Generate action steps
+            const sellAction = r.type === 'MF'
+                ? `Redeem ${r.unitsToSell.toFixed(2)} units from "${r.name}"`
+                : `Sell ${r.unitsToSell} shares of ${r.name}`;
+            const buyAction = r.type === 'MF'
+                ? `Immediately reinvest ₹${Math.round(r.capitalRequired).toLocaleString('en-IN')} in the same fund`
+                : `Buy back ${r.unitsToSell} shares of ${r.name} at market price`;
+
             return `
             <div class="recommendation-card">
                 <div class="rec-info">
@@ -739,6 +747,12 @@ function generateRecommendations() {
                 <div class="rec-stat">
                     <div class="label">Capital</div>
                     <div class="value">${formatCurrency(r.capitalRequired)}</div>
+                </div>
+                <div class="rec-actions">
+                    <div class="action-title">📋 Actions:</div>
+                    <div class="action-step"><span class="step-num">1</span> ${sellAction}</div>
+                    <div class="action-step"><span class="step-num">2</span> ${buyAction}</div>
+                    <div class="action-note">⚡ Do both on the same day to maintain your position</div>
                 </div>
             </div>
         `}).join('');
