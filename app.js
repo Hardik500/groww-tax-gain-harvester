@@ -281,14 +281,31 @@ function parseMFOrderHistory(data) {
 
 // Get buy date range for a scheme from order history
 function getSchemeByDates(schemeName) {
-    const purchases = appData.mfOrderHistory.filter(o =>
-        o.schemeName.toLowerCase().includes(schemeName.toLowerCase().split(' ')[0]) ||
-        schemeName.toLowerCase().includes(o.schemeName.toLowerCase().split(' ')[0])
-    );
+    if (appData.mfOrderHistory.length === 0) return null;
+
+    // Normalize scheme name for matching
+    const normalizedName = schemeName.toLowerCase()
+        .replace(/direct/gi, '')
+        .replace(/growth/gi, '')
+        .replace(/plan/gi, '')
+        .replace(/fund/gi, '')
+        .replace(/limited/gi, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    // Extract key words (AMC name + scheme type)
+    const keywords = normalizedName.split(' ').filter(w => w.length > 2);
+
+    const purchases = appData.mfOrderHistory.filter(o => {
+        const orderName = o.schemeName.toLowerCase();
+        // Match if at least 2 keywords match
+        const matchCount = keywords.filter(kw => orderName.includes(kw)).length;
+        return matchCount >= 2;
+    });
 
     if (purchases.length === 0) return null;
 
-    // Sort by date
+    // Get unique dates
     const dates = purchases.map(p => p.date).filter(d => d);
     if (dates.length === 0) return null;
 
