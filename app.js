@@ -421,17 +421,29 @@ function parseExcelDate(value) {
 document.getElementById('calculate-btn').addEventListener('click', calculateHarvesting);
 
 function calculateHarvesting() {
-    // ===== Step 1: Calculate all realized gains/losses =====
+    // ===== Step 1: Calculate all realized gains/losses for CURRENT FY only =====
+    const currentFY = getCurrentFY();
 
-    // MF gains (always positive in the report - losses rarely occur)
-    const mfLtcg = appData.mfCapitalGains.reduce((sum, g) => sum + Math.max(0, g.ltcg), 0);
-    const mfStcg = appData.mfCapitalGains.reduce((sum, g) => sum + Math.max(0, g.stcg), 0);
-    const mfLtcl = appData.mfCapitalGains.reduce((sum, g) => sum + Math.abs(Math.min(0, g.ltcg)), 0);
-    const mfStcl = appData.mfCapitalGains.reduce((sum, g) => sum + Math.abs(Math.min(0, g.stcg)), 0);
+    // Filter MF gains to current FY
+    const currentFYMFGains = appData.mfCapitalGains.filter(g =>
+        getFinancialYear(g.redeemDate) === currentFY
+    );
 
-    // Stock gains/losses from summary
-    const stockLongPnL = appData.stockCapitalGains.summary?.longTermPnL || 0;
-    const stockShortPnL = appData.stockCapitalGains.summary?.shortTermPnL || 0;
+    const mfLtcg = currentFYMFGains.reduce((sum, g) => sum + Math.max(0, g.ltcg), 0);
+    const mfStcg = currentFYMFGains.reduce((sum, g) => sum + Math.max(0, g.stcg), 0);
+    const mfLtcl = currentFYMFGains.reduce((sum, g) => sum + Math.abs(Math.min(0, g.ltcg)), 0);
+    const mfStcl = currentFYMFGains.reduce((sum, g) => sum + Math.abs(Math.min(0, g.stcg)), 0);
+
+    // Stock gains/losses - filter to current FY and recalculate from trades
+    const currentFYLongTermTrades = (appData.stockCapitalGains.longTerm || []).filter(t =>
+        getFinancialYear(t.sellDate) === currentFY
+    );
+    const currentFYShortTermTrades = (appData.stockCapitalGains.shortTerm || []).filter(t =>
+        getFinancialYear(t.sellDate) === currentFY
+    );
+
+    const stockLongPnL = currentFYLongTermTrades.reduce((sum, t) => sum + (t.realisedPnL || 0), 0);
+    const stockShortPnL = currentFYShortTermTrades.reduce((sum, t) => sum + (t.realisedPnL || 0), 0);
 
     const stockLtcg = Math.max(0, stockLongPnL);
     const stockLtcl = Math.abs(Math.min(0, stockLongPnL));
@@ -510,9 +522,16 @@ function calculateHarvesting() {
 
 function renderRedeemedMFs() {
     const tbody = document.getElementById('redeemed-mf-body');
+    const currentFY = getCurrentFY();
+
+    // Filter to current FY only
+    const currentFYGains = appData.mfCapitalGains.filter(g => {
+        const fy = getFinancialYear(g.redeemDate);
+        return fy === currentFY;
+    });
 
     const grouped = {};
-    appData.mfCapitalGains.forEach(g => {
+    currentFYGains.forEach(g => {
         if (!grouped[g.schemeName]) {
             grouped[g.schemeName] = {
                 redeemDate: g.redeemDate,
@@ -556,10 +575,12 @@ function renderRedeemedMFs() {
 function renderRedeemedStocks() {
     const tbody = document.getElementById('redeemed-stocks-body');
 
+    const currentFY = getCurrentFY();
+
     const allTrades = [
         ...appData.stockCapitalGains.shortTerm.map(t => ({ ...t, type: 'Short' })),
         ...appData.stockCapitalGains.longTerm.map(t => ({ ...t, type: 'Long' }))
-    ];
+    ].filter(t => getFinancialYear(t.sellDate) === currentFY);
 
     if (allTrades.length === 0) {
         tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No stock sales this FY</td></tr>';
@@ -857,6 +878,19 @@ function getFinancialYear(dateStr) {
     const year = date.getFullYear();
 
     // FY starts April (month 3), so Jan-Mar belongs to previous FY
+    if (month < 3) { // Jan, Feb, Mar
+        return `FY ${year - 1}-${String(year).slice(2)}`;
+    } else {
+        return `FY ${year}-${String(year + 1).slice(2)}`;
+    }
+}
+
+// Get current Indian Financial Year
+function getCurrentFY() {
+    const now = new Date();
+    const month = now.getMonth();
+    const year = now.getFullYear();
+
     if (month < 3) { // Jan, Feb, Mar
         return `FY ${year - 1}-${String(year).slice(2)}`;
     } else {
