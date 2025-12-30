@@ -32,7 +32,9 @@ const appData = {
         'mf-capital-gains': false,
         'stock-holdings': false,
         'stock-capital-gains': false
-    }
+    },
+    currentFilter: 'both', // 'mf', 'stock', or 'both'
+    remainingExemption: 0
 };
 
 // ============================================
@@ -344,19 +346,19 @@ function calculateHarvesting() {
     const stockLtcgRealized = appData.stockCapitalGains.summary?.longTermPnL || 0;
     const totalRealizedLtcg = mfLtcgRealized + Math.max(0, stockLtcgRealized);
 
-    const remainingExemption = Math.max(0, LTCG_EXEMPTION_LIMIT - totalRealizedLtcg);
+    appData.remainingExemption = Math.max(0, LTCG_EXEMPTION_LIMIT - totalRealizedLtcg);
 
     // Update summary
     document.getElementById('realized-ltcg').textContent = formatCurrency(totalRealizedLtcg);
     document.getElementById('realized-breakdown').innerHTML =
         `MF: ${formatCurrency(mfLtcgRealized)} | Stocks: ${formatCurrency(Math.max(0, stockLtcgRealized))}`;
-    document.getElementById('remaining-ltcg').textContent = formatCurrency(remainingExemption);
+    document.getElementById('remaining-ltcg').textContent = formatCurrency(appData.remainingExemption);
 
     // Render sections
     renderRedeemedMFs();
     renderRedeemedStocks();
     renderCurrentHoldings();
-    generateRecommendations(remainingExemption);
+    generateRecommendations();
 
     // Show results
     document.getElementById('results-section').style.display = 'block';
@@ -462,8 +464,10 @@ function renderCurrentHoldings() {
     }
 }
 
-function generateRecommendations(remainingExemption) {
+function generateRecommendations() {
     const container = document.getElementById('recommendation-cards');
+    const remainingExemption = appData.remainingExemption;
+    const filter = appData.currentFilter;
 
     if (remainingExemption <= 0) {
         container.innerHTML = `
@@ -482,38 +486,42 @@ function generateRecommendations(remainingExemption) {
     const candidates = [];
 
     // MF candidates - EXCLUDE ELSS (3-year lock-in)
-    appData.mfHoldings.forEach(h => {
-        if (h.returns > 0 && !h.isELSS) {
-            candidates.push({
-                type: 'MF',
-                name: h.schemeName,
-                totalUnits: h.units,
-                totalGain: h.returns,
-                currentValue: h.currentValue,
-                investedValue: h.investedValue,
-                gainPerUnit: h.returns / h.units,
-                pricePerUnit: h.currentValue / h.units,
-                efficiency: h.returns / h.currentValue
-            });
-        }
-    });
+    if (filter === 'mf' || filter === 'both') {
+        appData.mfHoldings.forEach(h => {
+            if (h.returns > 0 && !h.isELSS) {
+                candidates.push({
+                    type: 'MF',
+                    name: h.schemeName,
+                    totalUnits: h.units,
+                    totalGain: h.returns,
+                    currentValue: h.currentValue,
+                    investedValue: h.investedValue,
+                    gainPerUnit: h.returns / h.units,
+                    pricePerUnit: h.currentValue / h.units,
+                    efficiency: h.returns / h.currentValue
+                });
+            }
+        });
+    }
 
     // Stock candidates
-    appData.stockHoldings.forEach(h => {
-        if (h.unrealisedPnL > 0) {
-            candidates.push({
-                type: 'Stock',
-                name: h.stockName,
-                totalUnits: h.quantity,
-                totalGain: h.unrealisedPnL,
-                currentValue: h.closingValue,
-                investedValue: h.buyValue,
-                gainPerUnit: h.unrealisedPnL / h.quantity,
-                pricePerUnit: h.closingPrice,
-                efficiency: h.unrealisedPnL / h.closingValue
-            });
-        }
-    });
+    if (filter === 'stock' || filter === 'both') {
+        appData.stockHoldings.forEach(h => {
+            if (h.unrealisedPnL > 0) {
+                candidates.push({
+                    type: 'Stock',
+                    name: h.stockName,
+                    totalUnits: h.quantity,
+                    totalGain: h.unrealisedPnL,
+                    currentValue: h.closingValue,
+                    investedValue: h.buyValue,
+                    gainPerUnit: h.unrealisedPnL / h.quantity,
+                    pricePerUnit: h.closingPrice,
+                    efficiency: h.unrealisedPnL / h.closingValue
+                });
+            }
+        });
+    }
 
     // Sort by efficiency (highest first)
     candidates.sort((a, b) => b.efficiency - a.efficiency);
@@ -601,6 +609,26 @@ document.querySelectorAll('.tabs').forEach(tabContainer => {
             parent.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
             parent.querySelector(`#${tabId}`).classList.add('active');
         });
+    });
+});
+
+// ============================================
+// Asset Filter (MF Only, Stocks Only, Both)
+// ============================================
+
+document.querySelectorAll('.filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        const filter = btn.dataset.filter;
+
+        // Update active state
+        document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+
+        // Update filter and regenerate recommendations
+        appData.currentFilter = filter;
+        if (appData.remainingExemption > 0) {
+            generateRecommendations();
+        }
     });
 });
 
