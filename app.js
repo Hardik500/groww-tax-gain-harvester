@@ -1001,11 +1001,32 @@ function analyzeFYHistory() {
     // Calculate totals and exemption usage for each FY
     const result = Object.entries(fyData)
         .map(([fy, data]) => {
-            const totalLtcg = data.mfLtcg + Math.max(0, data.stockLtcg);
-            const totalStcg = data.mfStcg + Math.max(0, data.stockStcg);
+            // Separate gains and losses
+            const mfLtcg = Math.max(0, data.mfLtcg);
+            const mfLtcl = Math.abs(Math.min(0, data.mfLtcg));
+            const mfStcg = Math.max(0, data.mfStcg);
+            const mfStcl = Math.abs(Math.min(0, data.mfStcg));
+
+            const stockLtcg = Math.max(0, data.stockLtcg);
+            const stockLtcl = Math.abs(Math.min(0, data.stockLtcg));
+            const stockStcg = Math.max(0, data.stockStcg);
+            const stockStcl = Math.abs(Math.min(0, data.stockStcg));
+
+            // Total gains and losses
+            const totalLtcg = mfLtcg + stockLtcg;
+            const totalStcg = mfStcg + stockStcg;
+            const totalLtcl = mfLtcl + stockLtcl;
+            const totalStcl = mfStcl + stockStcl;
+
+            // Apply loss offset rules (same as main calculation)
+            const netStcg = Math.max(0, totalStcg - totalStcl);
+            const remainingStcl = Math.max(0, totalStcl - totalStcg);
+            const netLtcg = Math.max(0, totalLtcg - totalLtcl - remainingStcl);
+
+            // Apply exemption to NET LTCG (after loss offsets)
             const exemptionLimit = getExemptionLimit(fy);
-            const exemptionUsed = Math.min(totalLtcg, exemptionLimit);
-            const exemptionWasted = Math.max(0, exemptionLimit - totalLtcg);
+            const exemptionUsed = Math.min(netLtcg, exemptionLimit);
+            const exemptionWasted = Math.max(0, exemptionLimit - netLtcg);
             const taxSaved = Math.round(exemptionUsed * 0.125);
             const missedSavings = Math.round(exemptionWasted * 0.125);
 
@@ -1014,6 +1035,10 @@ function analyzeFYHistory() {
                 ...data,
                 totalLtcg,
                 totalStcg,
+                totalLtcl,
+                totalStcl,
+                netLtcg,
+                netStcg,
                 exemptionLimit,
                 exemptionUsed,
                 exemptionWasted,
@@ -1057,9 +1082,23 @@ function showFYAnalysis() {
                         </div>
                         <div class="fy-details">
                             <div class="fy-row">
-                                <span>LTCG Realized:</span>
+                                <span>LTCG Realized (Gross):</span>
                                 <span>₹${a.totalLtcg.toLocaleString('en-IN')}</span>
                             </div>
+                            ${(a.totalLtcl > 0 || a.totalStcl > 0) ? `
+                            <div class="fy-row">
+                                <span>Loss Offsets:</span>
+                                <span style="color: var(--error);">
+                                    ${a.totalLtcl > 0 ? `LTCL: -₹${a.totalLtcl.toLocaleString('en-IN')}` : ''}
+                                    ${a.totalLtcl > 0 && a.totalStcl > 0 ? ' | ' : ''}
+                                    ${a.totalStcl > 0 ? `STCL: -₹${a.totalStcl.toLocaleString('en-IN')}` : ''}
+                                </span>
+                            </div>
+                            <div class="fy-row">
+                                <span>Net LTCG (After Offsets):</span>
+                                <span style="color: var(--accent);">₹${a.netLtcg.toLocaleString('en-IN')}</span>
+                            </div>
+                            ` : ''}
                             <div class="fy-row">
                                 <span>Exemption Limit:</span>
                                 <span>₹${a.exemptionLimit.toLocaleString('en-IN')}</span>
