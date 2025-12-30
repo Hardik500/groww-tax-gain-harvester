@@ -467,7 +467,10 @@ function calculateHarvesting() {
     let netLtcg = Math.max(0, totalLtcg - totalLtcl - remainingStcl);
 
     // ===== Step 4: Apply LTCG exemption =====
-    appData.remainingExemption = Math.max(0, LTCG_EXEMPTION_LIMIT - netLtcg);
+    // IMPORTANT: Use GROSS LTCG (totalLtcg) for exemption calculation, not netLtcg
+    // The ₹1.25L exemption applies to total realized LTCG before loss offsets.
+    // Losses should be preserved (or carry-forwarded) for gains exceeding the exemption.
+    appData.remainingExemption = Math.max(0, LTCG_EXEMPTION_LIMIT - totalLtcg);
 
     // ===== Step 5: Update UI =====
     document.getElementById('total-ltcg').textContent = formatCurrency(totalLtcg);
