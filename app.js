@@ -341,18 +341,64 @@ function parseExcelDate(value) {
 document.getElementById('calculate-btn').addEventListener('click', calculateHarvesting);
 
 function calculateHarvesting() {
-    // Calculate realized LTCG
-    const mfLtcgRealized = appData.mfCapitalGains.reduce((sum, g) => sum + g.ltcg, 0);
-    const stockLtcgRealized = appData.stockCapitalGains.summary?.longTermPnL || 0;
-    const totalRealizedLtcg = mfLtcgRealized + Math.max(0, stockLtcgRealized);
+    // ===== Step 1: Calculate all realized gains/losses =====
 
-    appData.remainingExemption = Math.max(0, LTCG_EXEMPTION_LIMIT - totalRealizedLtcg);
+    // MF gains (always positive in the report - losses rarely occur)
+    const mfLtcg = appData.mfCapitalGains.reduce((sum, g) => sum + Math.max(0, g.ltcg), 0);
+    const mfStcg = appData.mfCapitalGains.reduce((sum, g) => sum + Math.max(0, g.stcg), 0);
+    const mfLtcl = appData.mfCapitalGains.reduce((sum, g) => sum + Math.abs(Math.min(0, g.ltcg)), 0);
+    const mfStcl = appData.mfCapitalGains.reduce((sum, g) => sum + Math.abs(Math.min(0, g.stcg)), 0);
 
-    // Update summary
-    document.getElementById('realized-ltcg').textContent = formatCurrency(totalRealizedLtcg);
-    document.getElementById('realized-breakdown').innerHTML =
-        `MF: ${formatCurrency(mfLtcgRealized)} | Stocks: ${formatCurrency(Math.max(0, stockLtcgRealized))}`;
-    document.getElementById('remaining-ltcg').textContent = formatCurrency(appData.remainingExemption);
+    // Stock gains/losses from summary
+    const stockLongPnL = appData.stockCapitalGains.summary?.longTermPnL || 0;
+    const stockShortPnL = appData.stockCapitalGains.summary?.shortTermPnL || 0;
+
+    const stockLtcg = Math.max(0, stockLongPnL);
+    const stockLtcl = Math.abs(Math.min(0, stockLongPnL));
+    const stockStcg = Math.max(0, stockShortPnL);
+    const stockStcl = Math.abs(Math.min(0, stockShortPnL));
+
+    // ===== Step 2: Total gains and losses =====
+    const totalLtcg = mfLtcg + stockLtcg;
+    const totalStcg = mfStcg + stockStcg;
+    const totalLtcl = mfLtcl + stockLtcl;
+    const totalStcl = mfStcl + stockStcl;
+
+    // ===== Step 3: Apply offset rules =====
+    // STCL can offset STCG first, then remaining STCL can offset LTCG
+    // LTCL can only offset LTCG
+
+    let netStcg = Math.max(0, totalStcg - totalStcl);
+    let remainingStcl = Math.max(0, totalStcl - totalStcg);
+
+    // LTCL offsets LTCG, then remaining STCL also offsets LTCG
+    let netLtcg = Math.max(0, totalLtcg - totalLtcl - remainingStcl);
+
+    // ===== Step 4: Apply LTCG exemption =====
+    appData.remainingExemption = Math.max(0, LTCG_EXEMPTION_LIMIT - netLtcg);
+
+    // ===== Step 5: Update UI =====
+    document.getElementById('total-ltcg').textContent = formatCurrency(totalLtcg);
+    document.getElementById('ltcg-breakdown').innerHTML = `MF: ${formatCurrency(mfLtcg)} | Stock: ${formatCurrency(stockLtcg)}`;
+
+    document.getElementById('total-stcg').textContent = formatCurrency(totalStcg);
+    document.getElementById('stcg-breakdown').innerHTML = `MF: ${formatCurrency(mfStcg)} | Stock: ${formatCurrency(stockStcg)}`;
+
+    document.getElementById('total-ltcl').textContent = totalLtcl > 0 ? `-${formatCurrency(totalLtcl)}` : '₹0';
+    document.getElementById('total-stcl').textContent = totalStcl > 0 ? `-${formatCurrency(totalStcl)}` : '₹0';
+
+    document.getElementById('net-ltcg').textContent = formatCurrency(netLtcg);
+
+    // Show offset info
+    let offsetInfo = [];
+    if (totalLtcl > 0) offsetInfo.push(`LTCL offset: -${formatCurrency(totalLtcl)}`);
+    if (remainingStcl > 0) offsetInfo.push(`STCL offset: -${formatCurrency(remainingStcl)}`);
+    document.getElementById('offset-info').textContent = offsetInfo.length > 0 ? offsetInfo.join(' | ') : 'No losses to offset';
+
+    document.getElementById('remaining-exemption').textContent = formatCurrency(appData.remainingExemption);
+
+    // Store for recommendations
+    appData.taxBreakdown = { totalLtcg, totalStcg, totalLtcl, totalStcl, netLtcg, netStcg };
 
     // Render sections
     renderRedeemedMFs();
@@ -375,27 +421,43 @@ function renderRedeemedMFs() {
     const grouped = {};
     appData.mfCapitalGains.forEach(g => {
         if (!grouped[g.schemeName]) {
-            grouped[g.schemeName] = { redeemDate: g.redeemDate, units: 0, stcg: 0, ltcg: 0 };
+            grouped[g.schemeName] = {
+                redeemDate: g.redeemDate,
+                units: 0,
+                stcg: 0,
+                ltcg: 0,
+                buyDates: new Set()
+            };
         }
         grouped[g.schemeName].units += g.matchedQuantity;
         grouped[g.schemeName].stcg += g.stcg;
         grouped[g.schemeName].ltcg += g.ltcg;
+        if (g.purchaseDate) grouped[g.schemeName].buyDates.add(g.purchaseDate);
     });
 
     if (Object.keys(grouped).length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No MF redemptions this FY</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No MF redemptions this FY</td></tr>';
         return;
     }
 
-    tbody.innerHTML = Object.entries(grouped).map(([name, data]) => `
+    tbody.innerHTML = Object.entries(grouped).map(([name, data]) => {
+        const dates = Array.from(data.buyDates).sort();
+        let buyDatesDisplay = 'N/A';
+        if (dates.length === 1) {
+            buyDatesDisplay = dates[0];
+        } else if (dates.length > 1) {
+            buyDatesDisplay = `${dates[0]} → ${dates[dates.length - 1]} (${dates.length} lots)`;
+        }
+        return `
         <tr>
             <td>${name}</td>
+            <td class="date-range">${buyDatesDisplay}</td>
             <td>${data.redeemDate || 'N/A'}</td>
             <td>${data.units.toFixed(2)}</td>
             <td class="${data.stcg >= 0 ? 'positive' : 'negative'}">${formatCurrency(data.stcg)}</td>
             <td class="${data.ltcg >= 0 ? 'positive' : 'negative'}">${formatCurrency(data.ltcg)}</td>
         </tr>
-    `).join('');
+    `}).join('');
 }
 
 function renderRedeemedStocks() {
@@ -407,13 +469,14 @@ function renderRedeemedStocks() {
     ];
 
     if (allTrades.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No stock sales this FY</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No stock sales this FY</td></tr>';
         return;
     }
 
     tbody.innerHTML = allTrades.slice(0, 30).map(t => `
         <tr>
             <td>${t.stockName}</td>
+            <td>${t.buyDate || 'N/A'}</td>
             <td>${t.sellDate || 'N/A'}</td>
             <td>${t.quantity}</td>
             <td>${formatCurrency(t.buyPrice)}</td>

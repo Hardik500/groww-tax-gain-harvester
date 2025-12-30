@@ -70,20 +70,40 @@
         <!-- Results Section -->
         <section class="results-section" id="results-section" style="display: none;">
 
-            <!-- Summary Cards -->
-            <div class="summary-grid">
-                <div class="summary-card">
-                    <div class="card-label">LTCG Exemption Limit</div>
-                    <div class="card-value">₹1,25,000</div>
-                </div>
-                <div class="summary-card warning">
-                    <div class="card-label">Already Realized LTCG</div>
-                    <div class="card-value" id="realized-ltcg">₹0</div>
-                    <div class="card-breakdown" id="realized-breakdown"></div>
-                </div>
-                <div class="summary-card success">
-                    <div class="card-label">Remaining to Harvest</div>
-                    <div class="card-value" id="remaining-ltcg">₹1,25,000</div>
+            <!-- Comprehensive Tax Summary -->
+            <div class="tax-summary" id="tax-summary">
+                <h2>📊 FY 2025-26 Tax Summary</h2>
+                <div class="tax-grid">
+                    <div class="tax-item gain">
+                        <div class="tax-label">LTCG (Realized)</div>
+                        <div class="tax-value" id="total-ltcg">₹0</div>
+                        <div class="tax-sub" id="ltcg-breakdown">MF: ₹0 | Stock: ₹0</div>
+                    </div>
+                    <div class="tax-item gain">
+                        <div class="tax-label">STCG (Realized)</div>
+                        <div class="tax-value" id="total-stcg">₹0</div>
+                        <div class="tax-sub" id="stcg-breakdown">MF: ₹0 | Stock: ₹0</div>
+                    </div>
+                    <div class="tax-item loss">
+                        <div class="tax-label">LTCL (Realized)</div>
+                        <div class="tax-value" id="total-ltcl">₹0</div>
+                        <div class="tax-sub">Can offset LTCG only</div>
+                    </div>
+                    <div class="tax-item loss">
+                        <div class="tax-label">STCL (Realized)</div>
+                        <div class="tax-value" id="total-stcl">₹0</div>
+                        <div class="tax-sub">Can offset STCG + LTCG</div>
+                    </div>
+                    <div class="tax-item net">
+                        <div class="tax-label">Net LTCG (After Offset)</div>
+                        <div class="tax-value" id="net-ltcg">₹0</div>
+                        <div class="tax-sub" id="offset-info">No losses to offset</div>
+                    </div>
+                    <div class="tax-item result">
+                        <div class="tax-label">Remaining Exemption</div>
+                        <div class="tax-value" id="remaining-exemption">₹1,25,000</div>
+                        <div class="tax-sub">From ₹1.25L limit</div>
+                    </div>
                 </div>
             </div>
 
@@ -102,6 +122,7 @@
                         <thead>
                             <tr>
                                 <th>Scheme Name</th>
+                                <th>Buy Dates</th>
                                 <th>Redeem Date</th>
                                 <th>Units</th>
                                 <th>STCG</th>
@@ -117,6 +138,7 @@
                         <thead>
                             <tr>
                                 <th>Stock Name</th>
+                                <th>Buy Date</th>
                                 <th>Sell Date</th>
                                 <th>Qty</th>
                                 <th>Buy</th>

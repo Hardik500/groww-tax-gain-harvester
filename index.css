@@ -237,9 +237,81 @@ section>h2 {
 }
 
 /* ========================================
-   Summary Cards
+   Tax Summary Grid (v3.0)
    ======================================== */
 
+.tax-summary {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    margin-bottom: 32px;
+}
+
+.tax-summary h2 {
+    margin-bottom: 20px;
+    font-size: 1.1rem;
+}
+
+.tax-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+}
+
+@media (max-width: 700px) {
+    .tax-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+.tax-item {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    text-align: center;
+}
+
+.tax-item.gain {
+    border-left: 3px solid var(--success);
+}
+
+.tax-item.loss {
+    border-left: 3px solid var(--error);
+}
+
+.tax-item.net {
+    border-left: 3px solid var(--accent);
+    background: rgba(88, 166, 255, 0.08);
+}
+
+.tax-item.result {
+    border-left: 3px solid var(--warning);
+    background: var(--warning-bg);
+}
+
+.tax-label {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    margin-bottom: 8px;
+}
+
+.tax-value {
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.tax-sub {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    margin-top: 6px;
+}
+
+/* Legacy summary-grid (keep for compatibility) */
 .summary-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
@@ -428,6 +500,12 @@ section>h2 {
 .data-table .tag.short {
     background: var(--warning-bg);
     color: var(--warning);
+}
+
+.data-table .date-range {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    white-space: nowrap;
 }
 
 /* ========================================
