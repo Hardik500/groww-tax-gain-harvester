@@ -467,10 +467,10 @@ function calculateHarvesting() {
     let netLtcg = Math.max(0, totalLtcg - totalLtcl - remainingStcl);
 
     // ===== Step 4: Apply LTCG exemption =====
-    // IMPORTANT: Use GROSS LTCG (totalLtcg) for exemption calculation, not netLtcg
-    // The ₹1.25L exemption applies to total realized LTCG before loss offsets.
-    // Losses should be preserved (or carry-forwarded) for gains exceeding the exemption.
-    appData.remainingExemption = Math.max(0, LTCG_EXEMPTION_LIMIT - totalLtcg);
+    // CRITICAL: Per Section 112A of Income Tax Act, the ₹1.25L exemption 
+    // is applied to NET LTCG (after loss offsets), not gross LTCG.
+    // Order: (1) Set off losses (2) Apply exemption to net gains (3) Calculate tax
+    appData.remainingExemption = Math.max(0, LTCG_EXEMPTION_LIMIT - netLtcg);
 
     // ===== Step 5: Update UI =====
     document.getElementById('total-ltcg').textContent = formatCurrency(totalLtcg);
@@ -555,7 +555,15 @@ function renderRedeemedMFs() {
         return;
     }
 
-    tbody.innerHTML = Object.entries(grouped).map(([name, data]) => {
+    // Calculate totals
+    let totalUnits = 0, totalStcg = 0, totalLtcg = 0;
+    Object.values(grouped).forEach(data => {
+        totalUnits += data.units;
+        totalStcg += data.stcg;
+        totalLtcg += data.ltcg;
+    });
+
+    const rows = Object.entries(grouped).map(([name, data]) => {
         const dates = Array.from(data.buyDates).sort();
         let buyDatesDisplay = 'N/A';
         if (dates.length === 1) {
@@ -573,6 +581,20 @@ function renderRedeemedMFs() {
             <td class="${data.ltcg >= 0 ? 'positive' : 'negative'}">${formatCurrency(data.ltcg)}</td>
         </tr>
     `}).join('');
+
+    // Add total row
+    const totalRow = `
+        <tr class="total-row">
+            <td><strong>TOTAL</strong></td>
+            <td></td>
+            <td></td>
+            <td><strong>${totalUnits.toFixed(2)}</strong></td>
+            <td class="${totalStcg >= 0 ? 'positive' : 'negative'}"><strong>${formatCurrency(totalStcg)}</strong></td>
+            <td class="${totalLtcg >= 0 ? 'positive' : 'negative'}"><strong>${formatCurrency(totalLtcg)}</strong></td>
+        </tr>
+    `;
+
+    tbody.innerHTML = rows + totalRow;
 }
 
 function renderRedeemedStocks() {
@@ -590,7 +612,19 @@ function renderRedeemedStocks() {
         return;
     }
 
-    tbody.innerHTML = allTrades.slice(0, 30).map(t => `
+    // Calculate totals
+    let totalQty = 0, totalBuyValue = 0, totalSellValue = 0, totalPnL = 0;
+    let shortTermPnL = 0, longTermPnL = 0;
+    allTrades.forEach(t => {
+        totalQty += t.quantity;
+        totalBuyValue += t.buyValue || 0;
+        totalSellValue += t.sellValue || 0;
+        totalPnL += t.realisedPnL || 0;
+        if (t.type === 'Short') shortTermPnL += t.realisedPnL || 0;
+        else longTermPnL += t.realisedPnL || 0;
+    });
+
+    const rows = allTrades.slice(0, 30).map(t => `
         <tr>
             <td>${t.stockName}</td>
             <td>${t.buyDate || 'N/A'}</td>
@@ -602,6 +636,22 @@ function renderRedeemedStocks() {
             <td><span class="tag ${t.type.toLowerCase()}">${t.type}</span></td>
         </tr>
     `).join('');
+
+    // Add total row
+    const totalRow = `
+        <tr class="total-row">
+            <td><strong>TOTAL (${allTrades.length} trades)</strong></td>
+            <td></td>
+            <td></td>
+            <td><strong>${totalQty}</strong></td>
+            <td></td>
+            <td></td>
+            <td class="${totalPnL >= 0 ? 'positive' : 'negative'}"><strong>${formatCurrency(totalPnL)}</strong></td>
+            <td><span class="tag short">ST: ${formatCurrency(shortTermPnL)}</span> <span class="tag long">LT: ${formatCurrency(longTermPnL)}</span></td>
+        </tr>
+    `;
+
+    tbody.innerHTML = rows + totalRow;
 }
 
 function renderCurrentHoldings() {

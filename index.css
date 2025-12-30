@@ -615,6 +615,20 @@ section>h2 {
     white-space: nowrap;
 }
 
+.data-table .total-row {
+    background: var(--bg-card);
+    border-top: 2px solid var(--accent);
+}
+
+.data-table .total-row:hover {
+    background: var(--bg-card);
+}
+
+.data-table .total-row td {
+    padding-top: 14px;
+    padding-bottom: 14px;
+}
+
 /* ========================================
    Recommendation Cards
    ======================================== */
