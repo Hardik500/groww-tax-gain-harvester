@@ -109,6 +109,16 @@
                         <div class="tax-value" id="remaining-exemption">₹1,25,000</div>
                         <div class="tax-sub">From ₹1.25L limit</div>
                     </div>
+                    <div class="tax-item savings">
+                        <div class="tax-label">💰 Tax You'll Save</div>
+                        <div class="tax-value" id="tax-savings">₹0</div>
+                        <div class="tax-sub" id="savings-info">If you harvest remaining exemption</div>
+                    </div>
+                </div>
+                <div class="tax-actions">
+                    <button class="action-btn" id="export-btn" disabled>📄 Export Report</button>
+                    <button class="action-btn" id="save-btn" disabled>💾 Save Session</button>
+                    <button class="action-btn secondary" id="history-btn">📊 View History</button>
                 </div>
             </div>
 
@@ -232,6 +242,17 @@
         <footer class="footer">
             <p>⚠️ This is for informational purposes. Consult a tax advisor for accuracy.</p>
         </footer>
+    </div>
+
+    <!-- History Modal -->
+    <div class="modal" id="history-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>📊 Harvesting History</h2>
+                <button class="close-btn" onclick="closeHistory()">✕</button>
+            </div>
+            <div id="history-content"></div>
+        </div>
     </div>
 
     <script src="app.js"></script>
