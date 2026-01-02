@@ -933,7 +933,15 @@ function getFinancialYear(dateStr) {
 
     let date;
     // Handle different date formats
-    if (typeof dateStr === 'string') {
+    if (typeof dateStr === 'number') {
+        // Excel serial number date (e.g., 45778 for 2025-05-03)
+        // Excel epoch is December 30, 1899
+        if (dateStr > 1000) { // Valid Excel date range
+            date = new Date((dateStr - 25569) * 86400 * 1000);
+        } else {
+            return null; // Invalid date
+        }
+    } else if (typeof dateStr === 'string') {
         // "DD-MM-YYYY" or "YYYY-MM-DD" or "DD Mon YYYY"
         if (dateStr.includes('-')) {
             const parts = dateStr.split('-');
@@ -945,6 +953,8 @@ function getFinancialYear(dateStr) {
         } else {
             date = new Date(dateStr);
         }
+    } else if (dateStr instanceof Date) {
+        date = dateStr;
     } else {
         date = new Date(dateStr);
     }
