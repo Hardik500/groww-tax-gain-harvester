@@ -47,6 +47,30 @@ const appData = {
 const dropzone = document.getElementById('dropzone');
 const fileInput = document.getElementById('file-input');
 
+// Update date hints based on current FY
+(function updateDateHints() {
+    const now = new Date();
+    const month = now.getMonth();
+    const year = now.getFullYear();
+
+    let fyStartYear, fyEndYear;
+    if (month < 3) { // Jan-Mar: we're in the end of previous FY
+        fyStartYear = year - 1;
+        fyEndYear = year;
+    } else { // Apr-Dec: we're in current FY
+        fyStartYear = year;
+        fyEndYear = year + 1;
+    }
+
+    const dateRange = `Date: Apr 1, ${fyStartYear} → Mar 31, ${fyEndYear} (FY ${fyStartYear.toString().slice(2)}-${fyEndYear.toString().slice(2)})`;
+
+    const mfHint = document.getElementById('mf-cg-date-hint');
+    const stockHint = document.getElementById('stock-cg-date-hint');
+
+    if (mfHint) mfHint.textContent = dateRange;
+    if (stockHint) stockHint.textContent = dateRange;
+})();
+
 // Drag and drop events
 dropzone.addEventListener('dragover', (e) => {
     e.preventDefault();
