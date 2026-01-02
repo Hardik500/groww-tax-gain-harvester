@@ -871,6 +871,245 @@ function generateRecommendations() {
 
     document.getElementById('total-ltcg-harvest').textContent = formatCurrency(accumulatedLtcg);
     document.getElementById('total-capital-required').textContent = formatCurrency(totalCapitalRequired);
+
+    // Generate optimization scenarios
+    generateOptimizationScenarios(remainingExemption);
+}
+
+// ============================================
+// Capital Optimization Scenarios
+// ============================================
+
+function generateOptimizationScenarios(remainingExemption) {
+    const container = document.getElementById('optimization-scenarios');
+    const scenarioCards = document.getElementById('scenario-cards');
+
+    if (remainingExemption <= 0) {
+        container.style.display = 'none';
+        return;
+    }
+
+    // Build candidates list (same as recommendations but with more flexibility)
+    const allCandidates = [];
+
+    // MF candidates
+    appData.mfHoldings.forEach(h => {
+        if (h.returns > 0 && !h.isELSS) {
+            allCandidates.push({
+                type: 'MF',
+                name: h.schemeName,
+                totalUnits: h.units,
+                totalGain: h.returns,
+                currentValue: h.currentValue,
+                gainPerUnit: h.returns / h.units,
+                pricePerUnit: h.currentValue / h.units,
+                efficiency: h.returns / h.currentValue
+            });
+        }
+    });
+
+    // Stock candidates
+    appData.stockHoldings.forEach(h => {
+        if (h.unrealisedPnL > 0) {
+            allCandidates.push({
+                type: 'Stock',
+                name: h.stockName,
+                totalUnits: h.quantity,
+                totalGain: h.unrealisedPnL,
+                currentValue: h.closingValue,
+                gainPerUnit: h.unrealisedPnL / h.quantity,
+                pricePerUnit: h.closingPrice,
+                efficiency: h.unrealisedPnL / h.closingValue
+            });
+        }
+    });
+
+    // Generate different scenarios
+    const scenarios = [];
+
+    // Scenario 1: Best Efficiency (current algorithm)
+    scenarios.push(calculateScenario('⚡ Best Efficiency', allCandidates, remainingExemption,
+        (a, b) => b.efficiency - a.efficiency));
+
+    // Scenario 2: MF Only
+    const mfOnly = allCandidates.filter(c => c.type === 'MF');
+    if (mfOnly.length > 0) {
+        scenarios.push(calculateScenario('📊 MF Only', mfOnly, remainingExemption,
+            (a, b) => b.efficiency - a.efficiency));
+    }
+
+    // Scenario 3: Stocks Only
+    const stockOnly = allCandidates.filter(c => c.type === 'Stock');
+    if (stockOnly.length > 0) {
+        scenarios.push(calculateScenario('📈 Stocks Only', stockOnly, remainingExemption,
+            (a, b) => b.efficiency - a.efficiency));
+    }
+
+    // Filter out scenarios that can't fill exemption
+    let validScenarios = scenarios.filter(s => s.ltcg > 0);
+
+    // Remove duplicate scenarios (same capital and LTCG values)
+    const seen = new Set();
+    validScenarios = validScenarios.filter(s => {
+        const key = `${Math.round(s.capital)}-${Math.round(s.ltcg)}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+    });
+
+    if (validScenarios.length <= 1) {
+        container.style.display = 'none';
+        return;
+    }
+
+    // Find minimum capital scenario
+    const minCapitalScenario = validScenarios.reduce((min, s) =>
+        s.capital < min.capital ? s : min, validScenarios[0]);
+
+    // Store scenarios for click handling
+    window.currentScenarios = validScenarios;
+
+    container.style.display = 'block';
+
+    scenarioCards.innerHTML = validScenarios.map((s, i) => {
+        const isMinCapital = s.capital === minCapitalScenario.capital;
+        const savings = minCapitalScenario.capital < s.capital ?
+            s.capital - minCapitalScenario.capital : 0;
+
+        return `
+            <div class="scenario-card ${isMinCapital ? 'recommended' : ''}" data-scenario-index="${i}">
+                <div class="scenario-name">
+                    ${s.name}
+                    ${isMinCapital ? '<span class="badge">Lowest Capital</span>' : ''}
+                </div>
+                <div class="scenario-stats">
+                    <div class="stat-row">
+                        <span class="label">LTCG Harvest</span>
+                        <span class="value">${formatCurrency(s.ltcg)}</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="label">Capital Required</span>
+                        <span class="value ${isMinCapital ? 'highlight' : ''}">${formatCurrency(s.capital)}</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="label">Holdings Used</span>
+                        <span class="value">${s.holdings.length}</span>
+                    </div>
+                </div>
+                <div class="holdings-list">
+                    ${s.holdings.slice(0, 3).map(h => `${h.name.substring(0, 20)}...`).join(', ')}
+                    ${s.holdings.length > 3 ? ` +${s.holdings.length - 3} more` : ''}
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    // Add click handlers to scenario cards
+    document.querySelectorAll('.scenario-card').forEach(card => {
+        card.addEventListener('click', () => {
+            const index = parseInt(card.dataset.scenarioIndex);
+            const scenario = window.currentScenarios[index];
+
+            if (scenario) {
+                // Update active state
+                document.querySelectorAll('.scenario-card').forEach(c => c.classList.remove('active'));
+                card.classList.add('active');
+
+                // Update recommendations display with this scenario's holdings
+                displayScenarioRecommendations(scenario);
+            }
+        });
+    });
+}
+
+// Display recommendations for a selected scenario
+function displayScenarioRecommendations(scenario) {
+    const container = document.getElementById('recommendation-cards');
+
+    container.innerHTML = scenario.holdings.map((r, i) => {
+        const sellAction = r.type === 'MF'
+            ? `Redeem ${r.unitsToSell.toFixed(2)} units from "${r.name}"`
+            : `Sell ${Math.floor(r.unitsToSell)} shares of ${r.name}`;
+        const buyAction = r.type === 'MF'
+            ? `Immediately reinvest ${formatCurrency(r.capitalRequired)} in the same fund`
+            : `Buy back ${Math.floor(r.unitsToSell)} shares of ${r.name} at market price`;
+
+        return `
+            <div class="recommendation-card">
+                <div class="rec-header">
+                    <h3>${i + 1}. ${r.name}</h3>
+                    <span class="rec-badge">${r.type}</span>
+                </div>
+                <div class="scheme-info">
+                    ${r.type} • ${(r.efficiency * 100).toFixed(0)}% eff
+                </div>
+                <div class="rec-body">
+                    <div class="rec-stats">
+                        <div class="rec-stat">
+                            <div class="label">Sell</div>
+                            <div class="value">${r.type === 'MF' ? r.unitsToSell.toFixed(2) + ' units' : Math.floor(r.unitsToSell) + ' shares'}</div>
+                        </div>
+                        <div class="rec-stat">
+                            <div class="label">LTCG</div>
+                            <div class="value success">${formatCurrency(r.ltcgFromSale)}</div>
+                        </div>
+                        <div class="rec-stat">
+                            <div class="label">Capital</div>
+                            <div class="value">${formatCurrency(r.capitalRequired)}</div>
+                        </div>
+                    </div>
+                    <div class="rec-actions">
+                        <div class="action-title">📋 Actions:</div>
+                        <div class="action-step"><span class="step-num">1</span> ${sellAction}</div>
+                        <div class="action-step"><span class="step-num">2</span> ${buyAction}</div>
+                        <div class="action-note">⚡ Do both on the same day to maintain your position</div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    // Update totals
+    document.getElementById('total-ltcg-harvest').textContent = formatCurrency(scenario.ltcg);
+    document.getElementById('total-capital-required').textContent = formatCurrency(scenario.capital);
+}
+
+function calculateScenario(name, candidates, targetLtcg, sortFn) {
+    const sorted = [...candidates].sort(sortFn);
+    const selected = [];
+    let accumulatedLtcg = 0;
+    let totalCapital = 0;
+
+    for (const c of sorted) {
+        if (accumulatedLtcg >= targetLtcg) break;
+
+        const remainingToFill = targetLtcg - accumulatedLtcg;
+        let unitsToSell, ltcgFromSale, capitalRequired;
+
+        if (c.totalGain <= remainingToFill) {
+            unitsToSell = c.totalUnits;
+            ltcgFromSale = c.totalGain;
+            capitalRequired = c.currentValue;
+        } else {
+            unitsToSell = remainingToFill / c.gainPerUnit;
+            if (c.type === 'Stock') unitsToSell = Math.floor(unitsToSell);
+            ltcgFromSale = unitsToSell * c.gainPerUnit;
+            capitalRequired = unitsToSell * c.pricePerUnit;
+        }
+
+        if (unitsToSell > 0 && ltcgFromSale > 0) {
+            selected.push({ ...c, unitsToSell, ltcgFromSale, capitalRequired });
+            accumulatedLtcg += ltcgFromSale;
+            totalCapital += capitalRequired;
+        }
+    }
+
+    return {
+        name,
+        ltcg: accumulatedLtcg,
+        capital: totalCapital,
+        holdings: selected
+    };
 }
 
 // ============================================

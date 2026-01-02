@@ -690,6 +690,147 @@ section>h2 {
 }
 
 /* ========================================
+   Capital Optimization Scenarios
+   ======================================== */
+
+.optimization-scenarios {
+    margin-bottom: 20px;
+    padding: 16px;
+    background: linear-gradient(135deg, rgba(88, 166, 255, 0.05) 0%, rgba(56, 139, 253, 0.02) 100%);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+}
+
+.optimization-scenarios h3 {
+    font-size: 0.95rem;
+    margin: 0 0 4px 0;
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+.optimization-scenarios>.section-desc {
+    font-size: 0.8rem;
+    margin: 0 0 12px 0;
+    color: var(--text-secondary);
+}
+
+.scenario-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 10px;
+}
+
+.scenario-card {
+    background: var(--bg-card);
+    border: 2px solid transparent;
+    border-radius: 10px;
+    padding: 14px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.scenario-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--accent), var(--success));
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.scenario-card:hover {
+    border-color: var(--accent);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.scenario-card:hover::before {
+    opacity: 1;
+}
+
+.scenario-card.active {
+    border-color: var(--success);
+    background: rgba(63, 185, 80, 0.08);
+}
+
+.scenario-card.active::before {
+    opacity: 1;
+    background: var(--success);
+}
+
+.scenario-card.recommended {
+    border-color: var(--warning);
+}
+
+.scenario-card.recommended::before {
+    opacity: 1;
+    background: var(--warning);
+}
+
+.scenario-card .scenario-name {
+    font-weight: 600;
+    font-size: 0.85rem;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.scenario-card .scenario-name .badge {
+    font-size: 0.6rem;
+    padding: 2px 8px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, var(--warning), #e3b341);
+    color: #000;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.scenario-card .scenario-stats {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.scenario-card .stat-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.78rem;
+}
+
+.scenario-card .stat-row .label {
+    color: var(--text-muted);
+}
+
+.scenario-card .stat-row .value {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.scenario-card .stat-row .value.highlight {
+    color: var(--success);
+    font-weight: 700;
+}
+
+.scenario-card .holdings-list {
+    margin-top: 10px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border);
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    line-height: 1.4;
+    opacity: 0.8;
+}
+
+/* ========================================
    Totals Bar
    ======================================== */
 
