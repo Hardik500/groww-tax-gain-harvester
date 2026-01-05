@@ -662,7 +662,10 @@ function calculateHarvesting() {
     document.getElementById('stcg-breakdown').innerHTML = `MF: ${formatCurrency(mfStcg)} | Stock: ${formatCurrency(stockStcg)}`;
 
     document.getElementById('total-ltcl').textContent = totalLtcl > 0 ? `-${formatCurrency(totalLtcl)}` : '₹0';
+    document.getElementById('ltcl-breakdown').innerHTML = totalLtcl > 0 ? `MF: -${formatCurrency(mfLtcl)} | Stock: -${formatCurrency(stockLtcl)}` : 'No losses';
+
     document.getElementById('total-stcl').textContent = totalStcl > 0 ? `-${formatCurrency(totalStcl)}` : '₹0';
+    document.getElementById('stcl-breakdown').innerHTML = totalStcl > 0 ? `MF: -${formatCurrency(mfStcl)} | Stock: -${formatCurrency(stockStcl)}` : 'No losses';
 
     document.getElementById('net-ltcg').textContent = formatCurrency(netLtcg);
 

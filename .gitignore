@@ -18,3 +18,5 @@ data/*.xlsx
 # Temporary files
 *.tmp
 *.log
+
+reports/*
