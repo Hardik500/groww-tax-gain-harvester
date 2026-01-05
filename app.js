@@ -153,7 +153,11 @@ function updateFileStatus(fileType, filename) {
     if (item) {
         item.classList.add('loaded');
         item.querySelector('.status-icon').textContent = '✅';
-        item.querySelector('.status-file').textContent = filename.slice(0, 25) + (filename.length > 25 ? '...' : '');
+        // Show truncated filename in hint
+        const hint = item.querySelector('.status-hint');
+        if (hint) {
+            hint.textContent = filename.length > 30 ? filename.slice(0, 30) + '...' : filename;
+        }
     }
 }
 

@@ -23,6 +23,13 @@
 
     --border: #30363d;
     --radius: 8px;
+
+    /* Spacing System */
+    --space-xs: 4px;
+    --space-sm: 8px;
+    --space-md: 16px;
+    --space-lg: 24px;
+    --space-xl: 32px;
 }
 
 * {
@@ -42,7 +49,7 @@ body {
 .app-container {
     max-width: 1000px;
     margin: 0 auto;
-    padding: 32px 20px;
+    padding: var(--space-xl) 20px;
 }
 
 /* ========================================
@@ -51,7 +58,7 @@ body {
 
 .header {
     text-align: center;
-    margin-bottom: 40px;
+    margin-bottom: var(--space-xl);
 }
 
 .logo {
@@ -82,7 +89,7 @@ body {
    ======================================== */
 
 section {
-    margin-bottom: 32px;
+    margin-bottom: var(--space-xl);
 }
 
 section>h2 {
@@ -119,7 +126,7 @@ section>h2 {
     position: relative;
     border: 2px dashed var(--border);
     border-radius: var(--radius);
-    padding: 40px 20px;
+    padding: var(--space-xl) 20px;
     text-align: center;
     cursor: pointer;
     transition: all 0.2s;
@@ -165,19 +172,26 @@ section>h2 {
 /* File Status List */
 .file-status-list {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-    gap: 12px;
-    margin-bottom: 24px;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--space-md);
+    margin-bottom: var(--space-lg);
+}
+
+@media (max-width: 600px) {
+    .file-status-list {
+        grid-template-columns: 1fr;
+    }
 }
 
 .file-status-item {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 12px 16px;
+    gap: var(--space-sm);
+    padding: var(--space-md);
     background: var(--bg-card);
     border-radius: var(--radius);
     border: 1px solid var(--border);
+    min-height: 60px;
 }
 
 .file-status-item.loaded {
@@ -187,21 +201,19 @@ section>h2 {
 
 .file-status-item .status-icon {
     font-size: 1.1rem;
+    flex-shrink: 0;
 }
 
 .file-status-item .status-name {
     font-weight: 500;
     font-size: 0.875rem;
+    flex: 1;
 }
 
-.file-status-item .status-file {
-    margin-left: auto;
-    font-size: 0.7rem;
+.file-status-item .status-hint {
+    font-size: 0.75rem;
     color: var(--text-muted);
-    max-width: 100px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    text-align: right;
 }
 
 /* Upload Instructions */
@@ -209,30 +221,36 @@ section>h2 {
     background: var(--bg-card);
     border: 1px solid var(--border);
     border-radius: var(--radius);
-    padding: 20px;
-    margin-top: 20px;
+    padding: var(--space-lg);
+    margin-top: var(--space-lg);
 }
 
 .upload-instructions h3 {
     font-size: 0.9rem;
-    margin: 0 0 16px 0;
+    margin: 0 0 var(--space-md) 0;
     color: var(--text-primary);
 }
 
 .instruction-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
-    gap: 12px;
+    gap: var(--space-md);
+}
+
+@media (max-width: 600px) {
+    .instruction-grid {
+        grid-template-columns: 1fr;
+    }
 }
 
 .instruction-item {
     background: var(--bg-secondary);
     border: 1px solid var(--border);
     border-radius: var(--radius);
-    padding: 12px;
+    padding: var(--space-md);
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: var(--space-xs);
 }
 
 .instruction-item .file-type {
@@ -324,8 +342,8 @@ section>h2 {
     background: var(--bg-secondary);
     border: 1px solid var(--border);
     border-radius: var(--radius);
-    padding: 24px;
-    margin-bottom: 32px;
+    padding: var(--space-lg);
+    margin-bottom: var(--space-xl);
 }
 
 .tax-summary h2 {
@@ -335,13 +353,13 @@ section>h2 {
 
 .tax-grid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 16px;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--space-md);
 }
 
-@media (max-width: 700px) {
+@media (max-width: 600px) {
     .tax-grid {
-        grid-template-columns: repeat(2, 1fr);
+        grid-template-columns: 1fr;
     }
 }
 
@@ -349,8 +367,11 @@ section>h2 {
     background: var(--bg-card);
     border: 1px solid var(--border);
     border-radius: var(--radius);
-    padding: 16px;
+    padding: var(--space-md);
     text-align: center;
+    display: flex;
+    flex-direction: column;
+    min-height: 100px;
 }
 
 .tax-item.gain {
@@ -500,8 +521,8 @@ section>h2 {
     background: var(--bg-secondary);
     border: 1px solid var(--border);
     border-radius: var(--radius);
-    padding: 20px;
-    margin-bottom: 20px;
+    padding: var(--space-lg);
+    margin-bottom: var(--space-lg);
     overflow: hidden;
 }
 
@@ -739,19 +760,32 @@ section>h2 {
 
 .scenario-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: 10px;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-md);
+}
+
+@media (max-width: 800px) {
+    .scenario-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 500px) {
+    .scenario-grid {
+        grid-template-columns: 1fr;
+    }
 }
 
 .scenario-card {
     background: var(--bg-card);
     border: 2px solid transparent;
     border-radius: 10px;
-    padding: 14px;
+    padding: var(--space-md);
     cursor: pointer;
     transition: all 0.2s ease;
     position: relative;
     overflow: hidden;
+    min-height: 140px;
 }
 
 .scenario-card::before {
