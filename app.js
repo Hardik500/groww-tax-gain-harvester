@@ -19,7 +19,8 @@ const FILE_PATTERNS = {
     'mf-capital-gains': /^Mutual_Funds_Capital_Gains_Report_[\d-]+_[\d-]+\.xlsx$/i,
     'mf-order-history': /^Mutual_Funds_Order_History_[\d-]+_[\d-]+\.xlsx$/i,
     'stock-holdings': /^Stocks_Holdings_Statement_\d+_[\d-]+\.xlsx$/i,
-    'stock-capital-gains': /^Stocks_Capital_Gains_Report_\d+_[\d-]+_[\d-]+\.xlsx$/i
+    'stock-capital-gains': /^Stocks_Capital_Gains_Report_\d+_[\d-]+_[\d-]+\.xlsx$/i,
+    'stock-order-history': /^Stocks_Order_History_[\d-]+.*\.xlsx$/i // Relaxed pattern to handle variable date segments
 };
 
 // Data storage
@@ -29,12 +30,14 @@ const appData = {
     mfOrderHistory: [],
     stockHoldings: [],
     stockCapitalGains: [],
+    stockOrderHistory: [], // New data store
     filesLoaded: {
         'mf-holdings': false,
         'mf-capital-gains': false,
         'mf-order-history': false,
         'stock-holdings': false,
-        'stock-capital-gains': false
+        'stock-capital-gains': false,
+        'stock-order-history': false // New status
     },
     currentFilter: 'both', // 'mf', 'stock', or 'both'
     remainingExemption: 0
@@ -128,6 +131,9 @@ async function handleFiles(files) {
                 case 'stock-capital-gains':
                     appData.stockCapitalGains = parseStockCapitalGains(data);
                     break;
+                case 'stock-order-history':
+                    appData.stockOrderHistory = parseStockOrderHistory(data);
+                    break;
             }
 
             // Update UI status
@@ -171,12 +177,15 @@ function readExcelFile(file) {
     });
 }
 
+// Update calculate button state
 function updateCalculateButton() {
     const btn = document.getElementById('calculate-btn');
-    // Order history is optional - only require core 4 files
+    // Order history is optional but recommended - core files are mandatory
     const requiredFiles = ['mf-holdings', 'mf-capital-gains', 'stock-holdings', 'stock-capital-gains'];
     const allLoaded = requiredFiles.every(f => appData.filesLoaded[f]);
     btn.disabled = !allLoaded;
+
+    // Add visual warning if order history is missing? (Optional enhancement)
 }
 
 // ============================================
@@ -428,8 +437,157 @@ function parseStockCapitalGains(data) {
     return result;
 }
 
+function parseStockOrderHistory(data) {
+    const orders = [];
+    const sheet = Object.values(data)[0];
+
+    // Find header row
+    let startRow = -1;
+    for (let i = 0; i < sheet.length; i++) {
+        // Groww format usually has "Symbol", "ISIN", "Quantity", etc.
+        // Looking for robust keywords
+        const rowStr = JSON.stringify(sheet[i] || []).toLowerCase();
+        if (rowStr.includes('symbol') && rowStr.includes('transaction type')) {
+            startRow = i + 1;
+            break;
+        }
+    }
+
+    if (startRow === -1) return orders;
+
+    // Map column indices (simple auto-discovery)
+    const header = sheet[startRow - 1].map(c => c ? c.toString().toLowerCase().trim() : '');
+    const colMap = {
+        name: header.findIndex(h => h.includes('symbol') || h.includes('stock name')),
+        type: header.findIndex(h => h.includes('transaction type') || h.includes('buy/sell')),
+        qty: header.findIndex(h => h.includes('quantity')),
+        date: header.findIndex(h => h.includes('date') || h.includes('time')),
+        price: header.findIndex(h => h.includes('price') || h.includes('rate'))
+    };
+
+    if (colMap.name === -1 || colMap.type === -1) return orders;
+
+    for (let i = startRow; i < sheet.length; i++) {
+        const row = sheet[i];
+        if (!row) continue;
+
+        const type = row[colMap.type]?.toString().toUpperCase();
+
+        // We only care about BUY orders to establish cost basis / holding period
+        if (type && (type.includes('BUY') || type.includes('PURCHASE'))) {
+            orders.push({
+                stockName: row[colMap.name],
+                type: 'BUY',
+                quantity: parseFloat(row[colMap.qty]) || 0,
+                price: parseFloat(row[colMap.price]) || 0,
+                date: parseExcelDate(row[colMap.date])
+            });
+        }
+    }
+
+    // Sort by date (oldest first)
+    orders.sort((a, b) => new Date(a.date) - new Date(b.date));
+    return orders;
+}
+
+// ============================================
+// FIFO Logic
+// ============================================
+
+/**
+ * Calculates how many units of a holding are eligible for LTCG (>12 months)
+ * Uses FIFO matching against buy history.
+ */
+function calculateLTCGEligibleUnits(stockName, currentQuantity, orderHistory) {
+    // 1. Filter buy orders for this stock
+    // Normalize names for better matching
+    const normalize = n => n.toLowerCase().replace(/limited|ltd|industries|private/g, '').replace(/[^a-z0-9]/g, '');
+    const targetName = normalize(stockName);
+
+    console.log(`[DEBUG] calculateLTCGEligibleUnits called for: ${stockName}, qty: ${currentQuantity}, orderHistory.length: ${orderHistory.length}`);
+
+    const buys = orderHistory.filter(o => normalize(o.stockName).includes(targetName) || targetName.includes(normalize(o.stockName)));
+
+    if (buys.length === 0) {
+        // Fallback: If no order history, assume ALL are SHORT TERM to be safe 
+        // (User complaint was about recommending fresh buys, so safe default is exclusion)
+        return { eligibleUnits: 0, avgBuyPrice: 0 };
+    }
+
+    // 2. FIFO Matching
+    // We basically need to find the "source" of the currently held 'currentQuantity'
+    // The "source" is the LAST 'currentQuantity' bought. 
+    // Wait... FIFO means: First In, First Out. 
+    // When we sell, we sell the OLDEST units first.
+    // So the units we CURRENTLY HOLD must be the MOST RECENTLY BOUGHT units.
+    // ... WAIT. NO.
+    // If I bought 100 in 2020, sold 50 in 2022. I hold 50. These 50 are from 2020.
+    // Logic: 
+    // Total Buys = Sum of all buy qty.
+    // Total Sells = (Sum of all buy qty) - currentQuantity. (Assuming all history is present)
+    // We need to match the "remaining" units to specific buy dates.
+    // Since we sell FIFO, the units remaining are the ones bought LATEST?
+    // NO. 
+    // If I buy A (2020), B (2021). I sell A. I keep B. B is latest.
+    // YES. The units currently held are the "tail" of the buy history.
+
+    // BUT, we might not have sell history in this file?
+    // Actually, stock order history has BUY and SELL. I parsed only BUY.
+    // Ideally we need Sells too to do true FIFO.
+    // simplification:
+    // If we assume the order history is complete:
+    // The `currentQuantity` represents the LAST `currentQuantity` units bought?
+    // Example:
+    // Buy 10 (Jan 1, 2020)
+    // Buy 10 (Jan 1, 2025)
+    // Sell 10 (Jan 2, 2025). FIFO -> Sold the 2020 units.
+    // Held: 10 units. Source: Jan 1, 2025.
+    // So yes, the units HELD are formed by the MOST RECENT buy orders working backwards until quantity is filled.
+
+    let unitsToAccountFor = currentQuantity;
+    let eligibleUnits = 0;
+
+    // Work BACKWARDS from newest to oldest buys
+    // These are the units we currently hold (assuming FIFO sales happened for any previous creates)
+    for (let i = buys.length - 1; i >= 0; i--) {
+        if (unitsToAccountFor <= 0) break;
+
+        const order = buys[i];
+        const unitsFromThisOrder = Math.min(unitsToAccountFor, order.quantity);
+
+        // check age
+        const buyDate = new Date(order.date);
+        const today = new Date();
+        const diffTime = Math.abs(today - buyDate);
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+        if (diffDays > 365) {
+            eligibleUnits += unitsFromThisOrder;
+        }
+
+        unitsToAccountFor -= unitsFromThisOrder;
+    }
+
+    return { eligibleUnits };
+}
 function parseExcelDate(value) {
     if (!value) return null;
+
+    if (typeof value === 'number') {
+        const date = new Date((value - 25569) * 86400 * 1000);
+        return date.toISOString().split('T')[0];
+    }
+
+    const str = value.toString().trim();
+
+    // Handle DD-MM-YYYY or DD/MM/YYYY format
+    const parts = str.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
+    if (parts) {
+        // parts[1] = Day, parts[2] = Month, parts[3] = Year
+        return `${parts[3]}-${parts[2].padStart(2, '0')}-${parts[1].padStart(2, '0')}`;
+    }
+
+    // Handle other string formats
     if (typeof value === 'string') return value;
     if (typeof value === 'number') {
         const date = new Date((value - 25569) * 86400 * 1000);
@@ -761,18 +919,40 @@ function generateRecommendations() {
     // Stock candidates
     if (filter === 'stock' || filter === 'both') {
         appData.stockHoldings.forEach(h => {
+            // Only consider for recommendation if there is SOME unrealized profit
             if (h.unrealisedPnL > 0) {
-                candidates.push({
-                    type: 'Stock',
-                    name: h.stockName,
-                    totalUnits: h.quantity,
-                    totalGain: h.unrealisedPnL,
-                    currentValue: h.closingValue,
-                    investedValue: h.buyValue,
-                    gainPerUnit: h.unrealisedPnL / h.quantity,
-                    pricePerUnit: h.closingPrice,
-                    efficiency: h.unrealisedPnL / h.closingValue
-                });
+
+                // NEW: Use Order History to determine "LTCG Eligible" units
+                // If Order History is missing, we default to 0 eligible units (Conservative)
+                // This fixes the bug where new stocks (2025) were recommended.
+
+                const { eligibleUnits } = calculateLTCGEligibleUnits(
+                    h.stockName,
+                    h.quantity,
+                    appData.stockOrderHistory
+                );
+
+                // Only recommend if we can harvest meaningful LTCG
+                if (eligibleUnits > 0) {
+                    // Calculate gain proportion
+                    // Assuming average gain per unit (simplified)
+                    // or we could do specific tranche math, but Avg Gain is usually clear enough for harvesting
+                    const gainPerUnit = h.unrealisedPnL / h.quantity;
+                    const eligibleGain = eligibleUnits * gainPerUnit;
+
+                    candidates.push({
+                        type: 'Stock',
+                        name: h.stockName,
+                        totalUnits: eligibleUnits, // Only harvest eligible units
+                        totalGain: eligibleGain,
+                        currentValue: (h.closingValue / h.quantity) * eligibleUnits,
+                        investedValue: (h.buyValue / h.quantity) * eligibleUnits,
+                        gainPerUnit: gainPerUnit,
+                        pricePerUnit: h.closingPrice,
+                        efficiency: h.unrealisedPnL / h.closingValue,
+                        note: eligibleUnits < h.quantity ? `Partial (${eligibleUnits}/${h.quantity})` : ''
+                    });
+                }
             }
         });
     }
@@ -911,16 +1091,28 @@ function generateOptimizationScenarios(remainingExemption) {
     // Stock candidates
     appData.stockHoldings.forEach(h => {
         if (h.unrealisedPnL > 0) {
-            allCandidates.push({
-                type: 'Stock',
-                name: h.stockName,
-                totalUnits: h.quantity,
-                totalGain: h.unrealisedPnL,
-                currentValue: h.closingValue,
-                gainPerUnit: h.unrealisedPnL / h.quantity,
-                pricePerUnit: h.closingPrice,
-                efficiency: h.unrealisedPnL / h.closingValue
-            });
+            // Fix: Apply the same LTCG eligibility check as main list
+            const { eligibleUnits } = calculateLTCGEligibleUnits(
+                h.stockName,
+                h.quantity,
+                appData.stockOrderHistory
+            );
+
+            if (eligibleUnits > 0) {
+                const gainPerUnit = h.unrealisedPnL / h.quantity;
+                const eligibleGain = eligibleUnits * gainPerUnit;
+
+                allCandidates.push({
+                    type: 'Stock',
+                    name: h.stockName,
+                    totalUnits: eligibleUnits,
+                    totalGain: eligibleGain,
+                    currentValue: (h.closingValue / h.quantity) * eligibleUnits, // Adjusted for eligible units
+                    gainPerUnit: gainPerUnit,
+                    pricePerUnit: h.closingPrice,
+                    efficiency: h.unrealisedPnL / h.closingValue
+                });
+            }
         }
     });
 
