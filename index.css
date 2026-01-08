@@ -159,7 +159,8 @@ section>h2 {
 
 .dropzone-hint {
     font-size: 0.8rem;
-    color: var(--text-muted);
+    color: var(--text-secondary);
+    /* Updated from text-muted for better contrast */
 }
 
 .dropzone input[type="file"] {
@@ -273,11 +274,13 @@ section>h2 {
 .instruction-item .file-path {
     font-size: 0.75rem;
     color: var(--text-secondary);
+    /* Improved contrast */
 }
 
 .instruction-item .date-range {
     font-size: 0.7rem;
-    color: var(--text-muted);
+    color: var(--text-secondary);
+    /* Improved from text-muted */
     margin-top: 4px;
 }
 

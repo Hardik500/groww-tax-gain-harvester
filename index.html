@@ -6,9 +6,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Tax Gain Harvester | LTCG Exemption Calculator</title>
     <meta name="description" content="Calculate optimal tax gain harvesting for India's ₹1.25L LTCG exemption">
+
+    <!-- Performance: Preconnect to external resources -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://cdn.sheetjs.com">
+
     <link rel="stylesheet" href="index.css">
+    <!-- Performance: font-display:swap for faster FCP -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <!-- Performance: Async load SheetJS to avoid render blocking -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js" async></script>
 </head>
 
 <body>
@@ -22,282 +30,288 @@
             <div class="subtitle">Optimize your ₹1.25L LTCG exemption • India FY 2024-25</div>
         </header>
 
-        <!-- Upload Section - Single Drop Zone -->
-        <section class="upload-section">
-            <h2>📁 Upload Groww Files</h2>
-            <p class="section-desc">Drop all your Groww spreadsheets here. Files will be auto-detected based on their
-                names.</p>
+        <!-- Main Content -->
+        <main>
+            <!-- Upload Section - Single Drop Zone -->
+            <section class="upload-section">
+                <h2>📁 Upload Groww Files</h2>
+                <p class="section-desc">Drop all your Groww spreadsheets here. Files will be auto-detected based on
+                    their
+                    names.</p>
 
-            <div class="dropzone" id="dropzone">
-                <div class="dropzone-content">
-                    <span class="dropzone-icon">📂</span>
-                    <p class="dropzone-text">Drop files here or <span class="browse-link">browse</span></p>
-                    <p class="dropzone-hint">Supports: Holdings, Capital Gains reports from Groww</p>
+                <div class="dropzone" id="dropzone">
+                    <div class="dropzone-content">
+                        <span class="dropzone-icon">📂</span>
+                        <p class="dropzone-text">Drop files here or <span class="browse-link">browse</span></p>
+                        <p class="dropzone-hint">Supports: Holdings, Capital Gains reports from Groww</p>
+                    </div>
+                    <input type="file" id="file-input" accept=".xlsx,.xls" multiple
+                        aria-label="Upload Groww Excel files for tax gain analysis">
                 </div>
-                <input type="file" id="file-input" accept=".xlsx,.xls" multiple>
-            </div>
 
-            <!-- File Status List -->
-            <div class="file-status-list" id="file-status-list">
-                <div class="file-status-item" data-type="mf-holdings">
-                    <span class="status-icon">⏳</span>
-                    <span class="status-name">MF Holdings</span>
-                    <span class="status-hint">Current holdings</span>
-                </div>
-                <div class="file-status-item" data-type="mf-capital-gains">
-                    <span class="status-icon">⏳</span>
-                    <span class="status-name">MF Capital Gains</span>
-                    <span class="status-hint">FY 2025-26</span>
-                </div>
-                <div class="file-status-item" data-type="mf-order-history">
-                    <span class="status-icon">⏳</span>
-                    <span class="status-name">MF Order History</span>
-                    <span class="status-hint">Optional</span>
-                </div>
-                <div class="file-status-item" data-type="stock-holdings">
-                    <span class="status-icon">⏳</span>
-                    <span class="status-name">Stock Holdings</span>
-                    <span class="status-hint">Current holdings</span>
-                </div>
-                <div class="file-status-item" data-type="stock-order-history">
-                    <span class="status-icon">⏳</span>
-                    <span class="status-name">Stock Order History</span>
-                    <span class="status-hint">Required for LTCG</span>
-                </div>
-                <div class="file-status-item" data-type="stock-capital-gains">
-                    <span class="status-icon">⏳</span>
-                    <span class="status-name">Stock Capital Gains</span>
-                    <span class="status-hint">FY 2025-26</span>
-                </div>
-            </div>
-
-            <!-- Upload Instructions -->
-            <div class="upload-instructions" id="upload-instructions">
-                <h3>📋 How to Download Files from Groww:</h3>
-                <div class="instruction-grid">
-                    <div class="instruction-item">
-                        <span class="file-type">MF Holdings</span>
-                        <span class="file-path">Profile → Reports → Mutual Funds - Holding Statement</span>
-                        <span class="date-range">Date: Any recent date</span>
+                <!-- File Status List -->
+                <div class="file-status-list" id="file-status-list">
+                    <div class="file-status-item" data-type="mf-holdings">
+                        <span class="status-icon">⏳</span>
+                        <span class="status-name">MF Holdings</span>
+                        <span class="status-hint">Current holdings</span>
                     </div>
-                    <div class="instruction-item">
-                        <span class="file-type">MF Capital Gains</span>
-                        <span class="file-path">Profile → Reports → Mutual Funds - Capital Gains</span>
-                        <span class="date-range" id="mf-cg-date-hint">Date: Apr 1, 2025 → Mar 31, 2026 (Current
-                            FY)</span>
+                    <div class="file-status-item" data-type="mf-capital-gains">
+                        <span class="status-icon">⏳</span>
+                        <span class="status-name">MF Capital Gains</span>
+                        <span class="status-hint">FY 2025-26</span>
                     </div>
-                    <div class="instruction-item">
-                        <span class="file-type">MF Order History</span>
-                        <span class="file-path">Profile → Reports → Mutual Funds - Order History</span>
-                        <span class="date-range">Date: From first Holding Date to Any recent date</span>
+                    <div class="file-status-item" data-type="mf-order-history">
+                        <span class="status-icon">⏳</span>
+                        <span class="status-name">MF Order History</span>
+                        <span class="status-hint">Optional</span>
                     </div>
-                    <div class="instruction-item">
-                        <span class="file-type">Stock Holdings</span>
-                        <span class="file-path">Profile → Reports → Stocks - Holdings Statement</span>
-                        <span class="date-range">Date: Any recent date</span>
+                    <div class="file-status-item" data-type="stock-holdings">
+                        <span class="status-icon">⏳</span>
+                        <span class="status-name">Stock Holdings</span>
+                        <span class="status-hint">Current holdings</span>
                     </div>
-                    <div class="instruction-item">
-                        <span class="file-type">Stock Capital Gains</span>
-                        <span class="file-path">Profile → Reports → Stocks - Capital Gains</span>
-                        <span class="date-range" id="stock-cg-date-hint">Date: Apr 1, 2025 → Mar 31, 2026 (Current
-                            FY)</span>
+                    <div class="file-status-item" data-type="stock-order-history">
+                        <span class="status-icon">⏳</span>
+                        <span class="status-name">Stock Order History</span>
+                        <span class="status-hint">Required for LTCG</span>
                     </div>
-                    <div class="instruction-item">
-                        <span class="file-type">Stock Order History</span>
-                        <span class="file-path">Profile → Reports → Stocks - Order History</span>
-                        <span class="date-range">Date: From first Holding Date to Any recent date</span>
-                    </div>
-                </div>
-                <p class="instruction-tip">💡 <strong>For Past FY Analysis:</strong> Download Capital Gains reports with
-                    extended date range (e.g., Apr 2020 → Mar 2025)</p>
-            </div>
-
-            <div style="text-align: center;">
-                <button class="calculate-btn" id="calculate-btn" disabled>
-                    <span class="btn-icon">⚡</span>
-                    Calculate Optimal Harvesting
-                </button>
-            </div>
-        </section>
-
-        <!-- Results Section -->
-        <section class="results-section" id="results-section" style="display: none;">
-
-            <!-- Comprehensive Tax Summary -->
-            <div class="tax-summary" id="tax-summary">
-                <h2>📊 FY 2025-26 Tax Summary</h2>
-                <div class="tax-grid">
-                    <div class="tax-item gain">
-                        <div class="tax-label">LTCG (Realized)</div>
-                        <div class="tax-value" id="total-ltcg">₹0</div>
-                        <div class="tax-sub" id="ltcg-breakdown">MF: ₹0 | Stock: ₹0</div>
-                    </div>
-                    <div class="tax-item gain">
-                        <div class="tax-label">STCG (Realized)</div>
-                        <div class="tax-value" id="total-stcg">₹0</div>
-                        <div class="tax-sub" id="stcg-breakdown">MF: ₹0 | Stock: ₹0</div>
-                    </div>
-                    <div class="tax-item loss">
-                        <div class="tax-label">LTCL (Realized)</div>
-                        <div class="tax-value" id="total-ltcl">₹0</div>
-                        <div class="tax-sub" id="ltcl-breakdown">No losses</div>
-                    </div>
-                    <div class="tax-item loss">
-                        <div class="tax-label">STCL (Realized)</div>
-                        <div class="tax-value" id="total-stcl">₹0</div>
-                        <div class="tax-sub" id="stcl-breakdown">No losses</div>
-                    </div>
-                    <div class="tax-item net">
-                        <div class="tax-label">Net LTCG (After Offset)</div>
-                        <div class="tax-value" id="net-ltcg">₹0</div>
-                        <div class="tax-sub" id="offset-info">No losses to offset</div>
-                    </div>
-                    <div class="tax-item result">
-                        <div class="tax-label">Remaining Exemption</div>
-                        <div class="tax-value" id="remaining-exemption">₹1,25,000</div>
-                        <div class="tax-sub">From ₹1.25L limit</div>
-                    </div>
-                    <div class="tax-item savings">
-                        <div class="tax-label">💰 Tax You'll Save</div>
-                        <div class="tax-value" id="tax-savings">₹0</div>
-                        <div class="tax-sub" id="savings-info">If you harvest remaining exemption</div>
-                    </div>
-                </div>
-                <div class="tax-actions">
-                    <button class="action-btn" id="export-btn" disabled>📄 Export Report</button>
-                    <button class="action-btn" id="save-btn" disabled>💾 Save Session</button>
-                    <button class="action-btn secondary" id="history-btn">📊 View History</button>
-                    <button class="action-btn secondary" id="fy-analysis-btn">📈 Past FY Analysis</button>
-                </div>
-            </div>
-
-            <!-- Already Redeemed Section -->
-            <div class="data-section" id="redeemed-section">
-                <div class="section-header">
-                    <h2>📋 Already Redeemed This FY</h2>
-                    <div class="tabs">
-                        <button class="tab-btn active" data-tab="redeemed-mf">Mutual Funds</button>
-                        <button class="tab-btn" data-tab="redeemed-stocks">Stocks</button>
+                    <div class="file-status-item" data-type="stock-capital-gains">
+                        <span class="status-icon">⏳</span>
+                        <span class="status-name">Stock Capital Gains</span>
+                        <span class="status-hint">FY 2025-26</span>
                     </div>
                 </div>
 
-                <div class="tab-content active" id="redeemed-mf">
-                    <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th>Scheme Name</th>
-                                <th>Buy Dates</th>
-                                <th>Redeem Date</th>
-                                <th>Units</th>
-                                <th>STCG</th>
-                                <th>LTCG</th>
-                            </tr>
-                        </thead>
-                        <tbody id="redeemed-mf-body"></tbody>
-                    </table>
+                <!-- Upload Instructions -->
+                <div class="upload-instructions" id="upload-instructions">
+                    <h3>📋 How to Download Files from Groww:</h3>
+                    <div class="instruction-grid">
+                        <div class="instruction-item">
+                            <span class="file-type">MF Holdings</span>
+                            <span class="file-path">Profile → Reports → Mutual Funds - Holding Statement</span>
+                            <span class="date-range">Date: Any recent date</span>
+                        </div>
+                        <div class="instruction-item">
+                            <span class="file-type">MF Capital Gains</span>
+                            <span class="file-path">Profile → Reports → Mutual Funds - Capital Gains</span>
+                            <span class="date-range" id="mf-cg-date-hint">Date: Apr 1, 2025 → Mar 31, 2026 (Current
+                                FY)</span>
+                        </div>
+                        <div class="instruction-item">
+                            <span class="file-type">MF Order History</span>
+                            <span class="file-path">Profile → Reports → Mutual Funds - Order History</span>
+                            <span class="date-range">Date: From first Holding Date to Any recent date</span>
+                        </div>
+                        <div class="instruction-item">
+                            <span class="file-type">Stock Holdings</span>
+                            <span class="file-path">Profile → Reports → Stocks - Holdings Statement</span>
+                            <span class="date-range">Date: Any recent date</span>
+                        </div>
+                        <div class="instruction-item">
+                            <span class="file-type">Stock Capital Gains</span>
+                            <span class="file-path">Profile → Reports → Stocks - Capital Gains</span>
+                            <span class="date-range" id="stock-cg-date-hint">Date: Apr 1, 2025 → Mar 31, 2026 (Current
+                                FY)</span>
+                        </div>
+                        <div class="instruction-item">
+                            <span class="file-type">Stock Order History</span>
+                            <span class="file-path">Profile → Reports → Stocks - Order History</span>
+                            <span class="date-range">Date: From first Holding Date to Any recent date</span>
+                        </div>
+                    </div>
+                    <p class="instruction-tip">💡 <strong>For Past FY Analysis:</strong> Download Capital Gains reports
+                        with
+                        extended date range (e.g., Apr 2020 → Mar 2025)</p>
                 </div>
 
-                <div class="tab-content" id="redeemed-stocks">
-                    <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th>Stock Name</th>
-                                <th>Buy Date</th>
-                                <th>Sell Date</th>
-                                <th>Qty</th>
-                                <th>Buy</th>
-                                <th>Sell</th>
-                                <th>P&L</th>
-                                <th>Type</th>
-                            </tr>
-                        </thead>
-                        <tbody id="redeemed-stocks-body"></tbody>
-                    </table>
+                <div style="text-align: center;">
+                    <button class="calculate-btn" id="calculate-btn" disabled>
+                        <span class="btn-icon">⚡</span>
+                        Calculate Optimal Harvesting
+                    </button>
                 </div>
-            </div>
+            </section>
 
-            <!-- Recommendations Section -->
-            <div class="data-section recommendations" id="recommendations-section">
-                <div class="section-header">
-                    <h2>🚀 Recommended Actions</h2>
-                    <div class="filter-tabs" id="asset-filter">
-                        <button class="filter-btn" data-filter="mf">MF Only</button>
-                        <button class="filter-btn active" data-filter="both">Both</button>
-                        <button class="filter-btn" data-filter="stock">Stocks Only</button>
+            <!-- Results Section -->
+            <section class="results-section" id="results-section" style="display: none;">
+
+                <!-- Comprehensive Tax Summary -->
+                <div class="tax-summary" id="tax-summary">
+                    <h2>📊 FY 2025-26 Tax Summary</h2>
+                    <div class="tax-grid">
+                        <div class="tax-item gain">
+                            <div class="tax-label">LTCG (Realized)</div>
+                            <div class="tax-value" id="total-ltcg">₹0</div>
+                            <div class="tax-sub" id="ltcg-breakdown">MF: ₹0 | Stock: ₹0</div>
+                        </div>
+                        <div class="tax-item gain">
+                            <div class="tax-label">STCG (Realized)</div>
+                            <div class="tax-value" id="total-stcg">₹0</div>
+                            <div class="tax-sub" id="stcg-breakdown">MF: ₹0 | Stock: ₹0</div>
+                        </div>
+                        <div class="tax-item loss">
+                            <div class="tax-label">LTCL (Realized)</div>
+                            <div class="tax-value" id="total-ltcl">₹0</div>
+                            <div class="tax-sub" id="ltcl-breakdown">No losses</div>
+                        </div>
+                        <div class="tax-item loss">
+                            <div class="tax-label">STCL (Realized)</div>
+                            <div class="tax-value" id="total-stcl">₹0</div>
+                            <div class="tax-sub" id="stcl-breakdown">No losses</div>
+                        </div>
+                        <div class="tax-item net">
+                            <div class="tax-label">Net LTCG (After Offset)</div>
+                            <div class="tax-value" id="net-ltcg">₹0</div>
+                            <div class="tax-sub" id="offset-info">No losses to offset</div>
+                        </div>
+                        <div class="tax-item result">
+                            <div class="tax-label">Remaining Exemption</div>
+                            <div class="tax-value" id="remaining-exemption">₹1,25,000</div>
+                            <div class="tax-sub">From ₹1.25L limit</div>
+                        </div>
+                        <div class="tax-item savings">
+                            <div class="tax-label">💰 Tax You'll Save</div>
+                            <div class="tax-value" id="tax-savings">₹0</div>
+                            <div class="tax-sub" id="savings-info">If you harvest remaining exemption</div>
+                        </div>
+                    </div>
+                    <div class="tax-actions">
+                        <button class="action-btn" id="export-btn" disabled>📄 Export Report</button>
+                        <button class="action-btn" id="save-btn" disabled>💾 Save Session</button>
+                        <button class="action-btn secondary" id="history-btn">📊 View History</button>
+                        <button class="action-btn secondary" id="fy-analysis-btn">📈 Past FY Analysis</button>
                     </div>
                 </div>
-                <p class="section-desc">Sell and rebuy same day to harvest tax-free gains. ELSS with 3-year lock-in are
-                    excluded.</p>
 
-                <!-- Capital Optimization Scenarios -->
-                <div class="optimization-scenarios" id="optimization-scenarios" style="display: none;">
-                    <h3>💡 Capital Optimization Options</h3>
-                    <p class="section-desc">Compare different strategies to fill your remaining exemption:</p>
-                    <div class="scenario-grid" id="scenario-cards"></div>
-                </div>
-
-                <div class="recommendation-list" id="recommendation-cards"></div>
-
-                <div class="totals-bar">
-                    <div class="total-item">
-                        <span class="total-label">Total LTCG to Harvest</span>
-                        <span class="total-value success" id="total-ltcg-harvest">₹0</span>
+                <!-- Already Redeemed Section -->
+                <div class="data-section" id="redeemed-section">
+                    <div class="section-header">
+                        <h2>📋 Already Redeemed This FY</h2>
+                        <div class="tabs">
+                            <button class="tab-btn active" data-tab="redeemed-mf">Mutual Funds</button>
+                            <button class="tab-btn" data-tab="redeemed-stocks">Stocks</button>
+                        </div>
                     </div>
-                    <div class="total-item">
-                        <span class="total-label">Capital Required</span>
-                        <span class="total-value" id="total-capital-required">₹0</span>
+
+                    <div class="tab-content active" id="redeemed-mf">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Scheme Name</th>
+                                    <th>Buy Dates</th>
+                                    <th>Redeem Date</th>
+                                    <th>Units</th>
+                                    <th>STCG</th>
+                                    <th>LTCG</th>
+                                </tr>
+                            </thead>
+                            <tbody id="redeemed-mf-body"></tbody>
+                        </table>
+                    </div>
+
+                    <div class="tab-content" id="redeemed-stocks">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Stock Name</th>
+                                    <th>Buy Date</th>
+                                    <th>Sell Date</th>
+                                    <th>Qty</th>
+                                    <th>Buy</th>
+                                    <th>Sell</th>
+                                    <th>P&L</th>
+                                    <th>Type</th>
+                                </tr>
+                            </thead>
+                            <tbody id="redeemed-stocks-body"></tbody>
+                        </table>
                     </div>
                 </div>
-            </div>
 
-            <!-- Current Holdings Section -->
-            <div class="data-section" id="holdings-section">
-                <div class="section-header">
-                    <h2>📦 Current Holdings with Unrealized Gains</h2>
-                    <div class="tabs">
-                        <button class="tab-btn active" data-tab="holdings-mf">Mutual Funds</button>
-                        <button class="tab-btn" data-tab="holdings-stocks">Stocks</button>
+                <!-- Recommendations Section -->
+                <div class="data-section recommendations" id="recommendations-section">
+                    <div class="section-header">
+                        <h2>🚀 Recommended Actions</h2>
+                        <div class="filter-tabs" id="asset-filter">
+                            <button class="filter-btn" data-filter="mf">MF Only</button>
+                            <button class="filter-btn active" data-filter="both">Both</button>
+                            <button class="filter-btn" data-filter="stock">Stocks Only</button>
+                        </div>
+                    </div>
+                    <p class="section-desc">Sell and rebuy same day to harvest tax-free gains. ELSS with 3-year lock-in
+                        are
+                        excluded.</p>
+
+                    <!-- Capital Optimization Scenarios -->
+                    <div class="optimization-scenarios" id="optimization-scenarios" style="display: none;">
+                        <h3>💡 Capital Optimization Options</h3>
+                        <p class="section-desc">Compare different strategies to fill your remaining exemption:</p>
+                        <div class="scenario-grid" id="scenario-cards"></div>
+                    </div>
+
+                    <div class="recommendation-list" id="recommendation-cards"></div>
+
+                    <div class="totals-bar">
+                        <div class="total-item">
+                            <span class="total-label">Total LTCG to Harvest</span>
+                            <span class="total-value success" id="total-ltcg-harvest">₹0</span>
+                        </div>
+                        <div class="total-item">
+                            <span class="total-label">Capital Required</span>
+                            <span class="total-value" id="total-capital-required">₹0</span>
+                        </div>
                     </div>
                 </div>
 
-                <div class="tab-content active" id="holdings-mf">
-                    <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th>Scheme Name</th>
-                                <th>Units</th>
-                                <th>Invested</th>
-                                <th>Current</th>
-                                <th>Gain</th>
-                                <th>%</th>
-                            </tr>
-                        </thead>
-                        <tbody id="holdings-mf-body"></tbody>
-                    </table>
-                </div>
+                <!-- Current Holdings Section -->
+                <div class="data-section" id="holdings-section">
+                    <div class="section-header">
+                        <h2>📦 Current Holdings with Unrealized Gains</h2>
+                        <div class="tabs">
+                            <button class="tab-btn active" data-tab="holdings-mf">Mutual Funds</button>
+                            <button class="tab-btn" data-tab="holdings-stocks">Stocks</button>
+                        </div>
+                    </div>
 
-                <div class="tab-content" id="holdings-stocks">
-                    <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th>Stock Name</th>
-                                <th>Qty</th>
-                                <th>Avg Buy</th>
-                                <th>Current</th>
-                                <th>Gain</th>
-                                <th>%</th>
-                            </tr>
-                        </thead>
-                        <tbody id="holdings-stocks-body"></tbody>
-                    </table>
-                </div>
-            </div>
-        </section>
+                    <div class="tab-content active" id="holdings-mf">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Scheme Name</th>
+                                    <th>Units</th>
+                                    <th>Invested</th>
+                                    <th>Current</th>
+                                    <th>Gain</th>
+                                    <th>%</th>
+                                </tr>
+                            </thead>
+                            <tbody id="holdings-mf-body"></tbody>
+                        </table>
+                    </div>
 
-        <!-- Footer -->
-        <footer class="footer">
-            <p>⚠️ This is for informational purposes. Consult a tax advisor for accuracy.</p>
-        </footer>
+                    <div class="tab-content" id="holdings-stocks">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Stock Name</th>
+                                    <th>Qty</th>
+                                    <th>Avg Buy</th>
+                                    <th>Current</th>
+                                    <th>Gain</th>
+                                    <th>%</th>
+                                </tr>
+                            </thead>
+                            <tbody id="holdings-stocks-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Footer -->
+            <footer class="footer">
+                <p>⚠️ This is for informational purposes. Consult a tax advisor for accuracy.</p>
+            </footer>
     </div>
 
     <!-- History Modal -->
@@ -311,7 +325,8 @@
         </div>
     </div>
 
-    <script src="app.js"></script>
+    <!-- Performance: Defer app.js loading -->
+    <script src="app.js" defer></script>
 </body>
 
 </html>
