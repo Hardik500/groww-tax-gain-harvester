@@ -13,8 +13,17 @@
     <link rel="preconnect" href="https://cdn.sheetjs.com">
 
     <link rel="stylesheet" href="index.css">
-    <!-- Performance: font-display:swap for faster FCP -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Performance: Async load Google Fonts to eliminate render blocking -->
+    <!-- Use media="print" trick: loads non-blocking, then switches to "all" via onload -->
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
+        media="print" onload="this.media='all'">
+    <!-- Fallback for browsers without JavaScript -->
+    <noscript>
+        <link rel="stylesheet"
+            href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap">
+    </noscript>
+
     <!-- Performance: Async load SheetJS to avoid render blocking -->
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js" async></script>
 </head>
